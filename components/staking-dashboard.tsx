@@ -129,65 +129,27 @@ export default function StakingDashboard() {
       <main className="container mx-auto mt-8 px-4">
         <h1 className="text-4xl font-bold mb-8">EARN ATOM REWARDS</h1>
         <div className="grid md:grid-cols-3 gap-8">
-          <Card className="bg-gray-800 bg-opacity-50 backdrop-blur-lg border-red-600 overflow-hidden">
-            <CardContent className="p-6">
-              <div className="flex justify-between items-start">
-                <div className="space-y-4">
-                  <div className="flex items-center space-x-2">
-                    <div className="text-xl font-bold uppercase text-white">atom</div>
-                    <motion.div
-                      animate={{ rotateY: 360 }}
-                      transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                    >
-                      <Atom className="h-6 w-6 text-red-600" />
-                    </motion.div>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="text-4xl font-bold text-red-600">{apr}%</div>
-                  <div className="text-sm uppercase">apr</div>
-                </div>
-              </div>
-              <div className="w-40 h-40 mx-auto my-6">
-                <motion.div
-                  whileHover={{ y: [0, -5, 0] }}
-                  transition={{ duration: 1, repeat: Infinity, ease: "easeInOut" }}
-                >
-                  <Image
-                    src="/images/oni-chan.png"
-                    alt="Oni-chan Stakes ATOM"
-                    width={180}
-                    height={180}
-                    layout="responsive"
-                  />
-                </motion.div>
-              </div>
-              <h3 className="text-2xl font-bold text-center text-white">Oni-chan thanks you for staking with us!</h3>
-              <div className="mt-6 space-y-2">
-                <div className="flex justify-between">
-                  <div className="text-sm text-gray-400">Price</div>
-                  <div className="font-medium text-white">4.30 $</div>
-                </div>
-                <div className="flex justify-between">
-                  <div className="text-sm text-gray-400">Reward Frequency</div>
-                  <div className="font-medium text-white">per block (6sec)</div>
-                </div>
-              </div>
-              <div className="mt-6 bg-gray-700 bg-opacity-50 p-4 rounded-lg">
-                <div className="text-sm text-white">
-                  Total delegated to Oni:
-                  <span className="text-red-600 font-bold ml-2">10,005,000 ATOM</span>
-                </div>
+          {/* Card 1 */}
+          <Card className="bg-gray-800 bg-opacity-50 backdrop-blur-lg border-red-600 overflow-hidden flex flex-col h-full">
+            <CardHeader className="text-center border-b border-gray-700 pb-4">
+              <CardTitle className="text-white">SWAP ANY TOKEN TO ATOM</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col flex-grow pt-6">
+              {/* Swap module from Skip API goes here */}
+              <div>
+                {/* Add your Skip API Swap module implementation here */}
+                <p className="text-center">Swap module from Skip API will be implemented here</p>
               </div>
             </CardContent>
           </Card>
 
+          {/* Card 2 */}
           <Card className="bg-gray-800 bg-opacity-50 backdrop-blur-lg border-red-600 relative overflow-hidden flex flex-col h-full">
             <Image src="/images/cosmos-stake.jpeg" alt="Cosmos Stake" layout="fill" objectFit="cover" className="opacity-50" />
-            <CardHeader className="relative z-10">
-              <CardTitle className="text-white">STAKE</CardTitle>
+            <CardHeader className="text-center border-b border-gray-700 pb-4 relative z-10">
+              <CardTitle className="text-white">STAKE YOUR ATOM TO EARN REWARDS</CardTitle>
             </CardHeader>
-            <CardContent className="relative z-10 flex flex-col flex-grow">
+            <CardContent className="relative z-10 flex flex-col flex-grow pt-6">
               <div className="mb-auto">
                 <p className="mb-4 text-white">You can safely stake your COSMOS by following these steps:</p>
                 <ol className="list-decimal list-inside mb-4 text-white">
@@ -223,6 +185,7 @@ export default function StakingDashboard() {
             </CardContent>
           </Card>
 
+          {/* Card 3 */}
           <Card className="bg-gray-800 bg-opacity-50 backdrop-blur-lg border-red-600 flex flex-col h-full">
             <CardHeader className="text-center border-b border-gray-700 pb-4">
               <CardTitle className="text-white">CALCULATE YOUR PROFIT</CardTitle>
@@ -296,6 +259,10 @@ export default function StakingDashboard() {
           <div className="flex items-center space-x-2">
             <Atom className="h-6 w-6" />
             <span>COSMOS</span>
+          </div>
+          <div className="text-sm text-white">
+            Total delegated to Oni:
+            <span className="text-red-600 font-bold ml-2">10,005,000 ATOM</span>
           </div>
           <div>
             <p>CONNECTED WALLET ADDRESS</p>
