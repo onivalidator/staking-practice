@@ -1,18 +1,20 @@
 'use client';
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Slider } from '@/components/ui/slider'
 import { Atom, ChevronUp, ChevronDown } from 'lucide-react'
 import { useChain } from '@cosmos-kit/react'
 import { ChainName } from '@cosmos-kit/core'
 import { StdFee } from '@cosmjs/amino'
 import Image from 'next/image'
-import { SwapWidget } from '@skip-go/widget';
-import { swapWidgetConfig } from './ui/SwapWidgetConfig';
+import { SwapWidget } from '@skip-go/widget'
+import { swapWidgetConfig } from './ui/SwapWidgetConfig'
+import { scaleLog } from 'd3-scale';
 
 export default function StakingDashboard() {
   const [stakeAmount, setStakeAmount] = useState(100)
@@ -20,6 +22,35 @@ export default function StakingDashboard() {
   const [apr] = useState(15.12)
   const chainName: ChainName = 'cosmoshub'
   const { connect, disconnect, openView, status, address, getSigningCosmWasmClient } = useChain(chainName)
+
+  const snapPoints = [0, 100, 250, 500, 1000, 5000, 10000, 50000, 100000, 250000]
+  
+  // Create a logarithmic scale
+  const logScale = scaleLog()
+    .domain([1, 250000]) // Use 1 as the minimum to avoid log(0)
+    .range([0, snapPoints.length - 1]) // Range from 0 to the number of snap points
+
+  const handleSliderChange = (value: number[]) => {
+    const index = Math.round(value[0])
+    setStakeAmount(snapPoints[index])
+  }
+
+  const getSliderValue = (amount: number) => {
+    const index = snapPoints.findIndex(point => point >= amount)
+    return index === -1 ? snapPoints.length - 1 : index
+  }
+
+  const handleStakeAmountChange = (value: string) => {
+    const numValue = value === '' ? 0 : parseInt(value, 10)
+    if (!isNaN(numValue)) {
+      setStakeAmount(Math.min(Math.max(0, numValue), 250000))
+    }
+  }
+
+  useEffect(() => {
+    // This effect will run whenever stakeAmount changes
+    // You can add any additional logic here if needed
+  }, [stakeAmount])
 
   const calculateProfit = (amount: number, period: 'daily' | 'monthly' | 'yearly') => {
     const periodMultiplier = period === 'daily' ? 1 : period === 'monthly' ? 30 : 365
@@ -60,13 +91,6 @@ export default function StakingDashboard() {
       console.log('Transaction hash:', result.transactionHash)
     } catch (error) {
       console.error('Staking failed:', error)
-    }
-  }
-
-  const handleStakeAmountChange = (value: string) => {
-    const numValue = value === '' ? 0 : parseInt(value, 10);
-    if (!isNaN(numValue)) {
-      setStakeAmount(Math.max(0, numValue));
     }
   }
 
@@ -229,7 +253,7 @@ export default function StakingDashboard() {
                   </div>
                 </div>
                 <motion.div
-                  whileHover={{ scale: 1.00, rotate: 0.5 }}
+                  whileHover={{ scale: 1.00, rotate: 0.7 }}
                   whileTap={{ scale: 0.98 }}
                   transition={{ type: "spring", stiffness: 400, damping: 17 }}
                   className="w-full"
@@ -261,7 +285,7 @@ export default function StakingDashboard() {
               </div>
               <div className="text-center">
                 <Label htmlFor="stakeAmount" className="text-lg font-semibold mb-4 block text-white">ENTER YOUR AMOUNT</Label>
-                <div className="relative max-w-xs mx-auto">
+                <div className="relative max-w-xs mx-auto mb-4">
                   <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
                     <Atom className="h-6 w-6 text-white" />
                   </div>
@@ -289,8 +313,16 @@ export default function StakingDashboard() {
                     </button>
                   </div>
                 </div>
-                <div className="text-sm text-gray-400 mt-2">ONI FEE: 5%</div>
+                <Slider
+                  value={[getSliderValue(stakeAmount)]}
+                  min={0}
+                  max={snapPoints.length - 1}
+                  step={1}
+                  className="max-w-xs mx-auto"
+                  onValueChange={handleSliderChange}
+                />
               </div>
+              <div className="text-sm text-gray-400 mt-2 text-center">ONI FEE: 5%</div>
               <div className="mt-auto space-y-2">
                 {['daily', 'monthly', 'yearly'].map((period, index) => (
                   <div key={period}>
