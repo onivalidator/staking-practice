@@ -11,6 +11,8 @@ import { useChain } from '@cosmos-kit/react'
 import { ChainName } from '@cosmos-kit/core'
 import { StdFee } from '@cosmjs/amino'
 import Image from 'next/image'
+import { SwapWidget } from '@skip-go/widget';
+import { swapWidgetConfig } from './ui/SwapWidgetConfig';
 
 export default function StakingDashboard() {
   const [stakeAmount, setStakeAmount] = useState(100)
@@ -61,8 +63,11 @@ export default function StakingDashboard() {
     }
   }
 
-  const handleStakeAmountChange = (value: number) => {
-    setStakeAmount(Math.max(0, value))
+  const handleStakeAmountChange = (value: string) => {
+    const numValue = value === '' ? 0 : parseInt(value, 10);
+    if (!isNaN(numValue)) {
+      setStakeAmount(Math.max(0, numValue));
+    }
   }
 
   const handleAmountToStakeChange = (value: number) => {
@@ -135,11 +140,7 @@ export default function StakingDashboard() {
               <CardTitle className="text-white">SWAP ANY TOKEN TO ATOM</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col flex-grow pt-6">
-              {/* Swap module from Skip API goes here */}
-              <div>
-                {/* Add your Skip API Swap module implementation here */}
-                <p className="text-center">Swap module from Skip API will be implemented here</p>
-              </div>
+              <SwapWidget {...swapWidgetConfig} />
             </CardContent>
           </Card>
 
@@ -151,7 +152,7 @@ export default function StakingDashboard() {
             </CardHeader>
             <CardContent className="relative z-10 flex flex-col flex-grow pt-6">
               <div className="mb-auto">
-                <p className="mb-4 text-white">You can safely stake your COSMOS by following these steps:</p>
+                <p className="mb-4 text-white">You can safely stake your ATOM by following these steps:</p>
                 <ol className="list-decimal list-inside mb-4 text-white">
                   <li>Connect your wallet</li>
                   <li>Enter the amount you want to stake</li>
@@ -213,10 +214,12 @@ export default function StakingDashboard() {
                   </div>
                   <Input
                     id="stakeAmount"
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     value={stakeAmount}
-                    onChange={(e) => handleStakeAmountChange(Number(e.target.value))}
-                    className="bg-gray-700 text-white pl-12 pr-16 text-2xl h-14 text-center no-spinner"
+                    onChange={(e) => handleStakeAmountChange(e.target.value)}
+                    className="bg-gray-700 text-white pl-12 pr-16 text-2xl h-14 text-center"
                   />
                   <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex flex-col">
                     <button
@@ -256,15 +259,18 @@ export default function StakingDashboard() {
 
       <footer className="mt-16 bg-gray-800 bg-opacity-50 backdrop-blur-lg p-4">
         <div className="container mx-auto flex justify-between items-center">
-          <div className="flex items-center space-x-2">
-            <Atom className="h-6 w-6" />
-            <span>COSMOS</span>
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2">
+              <Atom className="h-6 w-6" />
+              <span className="uppercase">COSMOS</span>
+            </div>
+            <div className="h-6 w-px bg-gray-600"></div>
+            <div className="text-sm text-white uppercase">
+              TOTAL DELEGATED TO ONI:
+              <span className="text-red-600 font-bold ml-2">10,005,000 ATOM</span>
+            </div>
           </div>
-          <div className="text-sm text-white">
-            Total delegated to Oni:
-            <span className="text-red-600 font-bold ml-2">10,005,000 ATOM</span>
-          </div>
-          <div>
+          <div className="text-white">
             <p>CONNECTED WALLET ADDRESS</p>
             <p className="text-red-600">{address || 'Connect wallet to view address'}</p>
           </div>
