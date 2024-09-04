@@ -1,13 +1,13 @@
 import { SwapWidgetProps } from '@skip-go/widget';
 
 export const swapWidgetConfig: SwapWidgetProps = {
-  theme: {
-    backgroundColor: '#1F2937', // Dark background
-    textColor: '#FFFFFF', // White text
-    borderColor: '#374151', // Lighter border color
-    brandColor: '#FF4B4B', // Red color for buttons and highlights
-    highlightColor: '#4B5563', // Keep the existing highlight color
-  },
+    theme: {
+      backgroundColor: '#1F2937',
+      textColor: '#FFFFFF',
+      borderColor: '#374151',
+      brandColor: '#FF4B4B',
+      highlightColor: '#4B5563',
+    },
   defaultRoute: {
     srcChainID: 'osmosis-1',
     destChainID: 'cosmoshub-4',
@@ -27,7 +27,8 @@ export const swapWidgetConfig: SwapWidgetProps = {
   className: 'rounded-lg',
   style: { 
     width: '100%', 
-  //  height: '100%',
+    height: 'auto',
+    minHeight: '500px', // Adjust this value as needed
     boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
   },
   settings: {

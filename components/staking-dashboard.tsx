@@ -16,7 +16,7 @@ import { swapWidgetConfig } from './ui/SwapWidgetConfig';
 
 export default function StakingDashboard() {
   const [stakeAmount, setStakeAmount] = useState(100)
-  const [amountToStake, setAmountToStake] = useState(0)
+  const [amountToStake, setAmountToStake] = useState(250) // Default to 250 ATOM
   const [apr] = useState(15.12)
   const chainName: ChainName = 'cosmoshub'
   const { connect, disconnect, openView, status, address, getSigningCosmWasmClient } = useChain(chainName)
@@ -70,8 +70,11 @@ export default function StakingDashboard() {
     }
   }
 
-  const handleAmountToStakeChange = (value: number) => {
-    setAmountToStake(Math.max(0, value))
+  const handleAmountToStakeChange = (value: string) => {
+    const numValue = value === '' ? 0 : parseInt(value, 10);
+    if (!isNaN(numValue)) {
+      setAmountToStake(Math.max(0, numValue));
+    }
   }
 
   const handleIncrementDecrement = (increment: boolean) => {
@@ -91,6 +94,25 @@ export default function StakingDashboard() {
       : Math.ceil(stakeAmount / step) * step - step
 
     setStakeAmount(Math.max(0, newAmount))
+  }
+
+  const handleIncrementDecrementStake = (increment: boolean) => {
+    let step = 10
+    if (amountToStake >= 10000) {
+      step = 2000
+    } else if (amountToStake >= 5000) {
+      step = 1000
+    } else if (amountToStake >= 1000) {
+      step = 100
+    } else if (amountToStake >= 200) {
+      step = 50
+    }
+
+    const newAmount = increment
+      ? Math.floor(amountToStake / step) * step + step
+      : Math.ceil(amountToStake / step) * step - step
+
+    setAmountToStake(Math.max(0, newAmount))
   }
 
   return (
@@ -119,34 +141,49 @@ export default function StakingDashboard() {
               <Button
                 onClick={handleWalletConnection}
                 variant="outline"
-                className="bg-transparent border-red-600 text-red-600 hover:bg-red-600 hover:text-white transition-colors"
+                className="bg-transparent border-[#FF4B4B] text-[#FF4B4B] hover:bg-[#FF4B4B] hover:text-white transition-colors"
               >
                 {status === 'Connected' ? 'Disconnect' : 'Connect Wallet'}
               </Button>
             </motion.div>
             <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-              <Button onClick={handleStake} className="bg-red-600 hover:bg-red-700 transition-colors">STAKE</Button>
+              <Button onClick={handleStake} className="bg-[#FF4B4B] hover:bg-[#FF3B3B] transition-colors">STAKE</Button>
             </motion.div>
           </div>
         </div>
       </header>
 
-      <main className="container mx-auto mt-8 px-4">
+      <main className="container mx-auto mt-8 px-4 pb-16">
         <h1 className="text-4xl font-bold mb-8">EARN ATOM REWARDS</h1>
         <div className="grid md:grid-cols-3 gap-8">
           {/* Card 1 */}
-          <Card className="bg-gray-800 bg-opacity-50 backdrop-blur-lg border-red-600 overflow-hidden flex flex-col h-full">
+          <Card className="bg-gray-800 bg-opacity-50 backdrop-blur-lg border-red-600 flex flex-col p-0 overflow-hidden">
             <CardHeader className="text-center border-b border-gray-700 pb-4">
               <CardTitle className="text-white">SWAP ANY TOKEN TO ATOM</CardTitle>
             </CardHeader>
-            <CardContent className="flex flex-col flex-grow pt-6">
-              <SwapWidget {...swapWidgetConfig} />
+            <CardContent className="flex-grow p-0">
+              <div className="w-full h-full flex items-center justify-center">
+                <SwapWidget
+                  {...swapWidgetConfig}
+                  className="w-full"
+                  style={{
+                    minHeight: '500px',
+                    height: 'auto',
+                    borderRadius: '0',
+                  }}
+                />
+              </div>
             </CardContent>
           </Card>
 
           {/* Card 2 */}
-          <Card className="bg-gray-800 bg-opacity-50 backdrop-blur-lg border-red-600 relative overflow-hidden flex flex-col h-full">
-            <Image src="/images/cosmos-stake.jpeg" alt="Cosmos Stake" layout="fill" objectFit="cover" className="opacity-50" />
+          <Card className="bg-gray-800 bg-opacity-50 backdrop-blur-lg border-red-600 relative overflow-hidden flex flex-col min-h-[600px]">
+            <Image 
+              src="/images/cosmos-stake.jpeg" 
+              alt="Cosmos Stake" 
+              fill
+              className="object-cover opacity-50"
+            />
             <CardHeader className="text-center border-b border-gray-700 pb-4 relative z-10">
               <CardTitle className="text-white">STAKE YOUR ATOM TO EARN REWARDS</CardTitle>
             </CardHeader>
@@ -162,49 +199,65 @@ export default function StakingDashboard() {
               <div className="mt-auto">
                 <div className="mb-4">
                   <Label htmlFor="amountToStake" className="text-lg font-semibold mb-2 block text-white">Amount to stake</Label>
-                  <div className="relative">
+                  <div className="relative w-full">
                     <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
                       <Atom className="h-6 w-6 text-white" />
                     </div>
                     <Input
                       id="amountToStake"
-                      type="number"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       value={amountToStake}
-                      onChange={(e) => handleAmountToStakeChange(Number(e.target.value))}
-                      className="bg-gray-700 text-white pl-12 pr-4 text-xl h-12"
-                      placeholder="Enter ATOM amount..."
+                      onChange={(e) => handleAmountToStakeChange(e.target.value)}
+                      className="bg-gray-700 text-white pl-12 pr-16 text-2xl h-14 w-full"
                     />
+                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex flex-col">
+                      <button
+                        onClick={() => handleIncrementDecrementStake(true)}
+                        className="text-gray-400 hover:text-white"
+                      >
+                        <ChevronUp className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => handleIncrementDecrementStake(false)}
+                        className="text-gray-400 hover:text-white"
+                      >
+                        <ChevronDown className="h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
                 <motion.div
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
+                  whileHover={{ scale: 1.00, rotate: 0.5 }}
+                  whileTap={{ scale: 0.98 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                  className="w-full"
                 >
-                  <Button onClick={handleStake} className="w-full bg-red-600 hover:bg-red-700 transition-colors">STAKE NOW</Button>
+                  <Button 
+                    onClick={handleStake} 
+                    className="w-full bg-[#FF4B4B] hover:bg-[#FF3B3B] transition-colors text-white font-semibold text-base py-4 px-4 rounded-lg shadow-md h-14"
+                  >
+                    Stake Now
+                  </Button>
                 </motion.div>
               </div>
             </CardContent>
           </Card>
 
           {/* Card 3 */}
-          <Card className="bg-gray-800 bg-opacity-50 backdrop-blur-lg border-red-600 flex flex-col h-full">
+          <Card className="bg-gray-800 bg-opacity-50 backdrop-blur-lg border-red-600 flex flex-col min-h-[600px]">
             <CardHeader className="text-center border-b border-gray-700 pb-4">
               <CardTitle className="text-white">CALCULATE YOUR PROFIT</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col flex-grow pt-6">
-              <div className="w-40 h-40 mx-auto mb-12">
-                <motion.div
-               whileHover={{ rotate: [0, 5, -5, 5, 0], x: [0, 5, -5, 5, 0] }}
-               transition={{ duration: .75 }}
-                >
-                  <Image
-                    src="/images/oni-chan-6.png"
-                    alt="Oni-chan caclulating on an abacus"
-                    width={160}
-                    height={160}
-                    layout="responsive"
-                  />
-                </motion.div>
+              <div className="w-40 h-40 mx-auto mb-12 relative">
+                <Image
+                  src="/images/oni-chan-6.png"
+                  alt="Oni-chan caclulating on an abacus"
+                  fill
+                  className="object-contain"
+                />
               </div>
               <div className="text-center">
                 <Label htmlFor="stakeAmount" className="text-lg font-semibold mb-4 block text-white">ENTER YOUR AMOUNT</Label>

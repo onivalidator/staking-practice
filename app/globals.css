@@ -86,3 +86,22 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Add this at the end of your globals.css file */
+.skip-widget-popup {
+  max-height: 200px !important;
+  overflow-y: auto !important;
+}
+
+.skip-widget-popup::-webkit-scrollbar {
+  width: 16px;
+}
+
+.skip-widget-popup::-webkit-scrollbar-thumb {
+  background-color: #4B5563;
+  border-radius: 3px;
+}
+
+.skip-widget-popup::-webkit-scrollbar-track {
+  background-color: #1F2937;
+}
