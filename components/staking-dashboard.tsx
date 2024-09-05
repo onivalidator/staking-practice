@@ -32,7 +32,7 @@ export default function StakingDashboard() {
 
   const [delegatedAtoms, setDelegatedAtoms] = useState<string>('0')
   const [blockHeight, setBlockHeight] = useState<number | null>(null)
-  const [atomPrice, setAtomPrice] = useState<number | null>(null)
+  const [atomPrice, setAtomPrice] = useState<number | null>(null);
 
   const fetchAtomPrice = async () => {
     try {
@@ -48,6 +48,12 @@ export default function StakingDashboard() {
     }
   }
 
+  useEffect(() => {
+    fetchAtomPrice()
+    const intervalId = setInterval(fetchAtomPrice, 60000) // Update every minute
+    return () => clearInterval(intervalId)
+  }, [])
+  
   const fetchValidators = async () => {
     try {
       const url = `${REST_ENDPOINT}/cosmos/staking/v1beta1/validators?pagination.limit=1000`
@@ -107,7 +113,7 @@ export default function StakingDashboard() {
     };
 
     fetchTotalDelegatedAtoms();
-    const intervalId = setInterval(fetchTotalDelegatedAtoms, 60000); // Fetch every minute
+    const intervalId = setInterval(fetchTotalDelegatedAtoms, 600000); // Fetch every minute
     return () => clearInterval(intervalId);
   }, []);
   
