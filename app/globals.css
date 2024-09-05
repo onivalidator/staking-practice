@@ -86,6 +86,12 @@
     @apply bg-background text-foreground;
   }
 }
+@font-face {
+  font-family: 'TokioNoir';
+  src: url('/fonts/TokioNoir.otf') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+}
 
 /* Add this at the end of your globals.css file */
 .skip-widget-popup {
@@ -104,4 +110,8 @@
 
 .skip-widget-popup::-webkit-scrollbar-track {
   background-color: #1F2937;
+}
+
+.font-tokio-noir {
+  font-family: 'TokioNoir', sans-serif !important;
 }

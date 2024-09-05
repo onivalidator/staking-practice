@@ -1,7 +1,8 @@
 import { SwapWidgetProps } from '@skip-go/widget';
 
 export const swapWidgetConfig: SwapWidgetProps = {
-    theme: {
+   
+  theme: {
       backgroundColor: '#1F2937',
       textColor: '#FFFFFF',
       borderColor: '#374151',

@@ -15,14 +15,49 @@ import Image from 'next/image'
 import { SwapWidget } from '@skip-go/widget'
 import { swapWidgetConfig } from './ui/SwapWidgetConfig'
 import { scaleLog } from 'd3-scale';
+import Head from 'next/head';
+import TintedImage from './process/TintedImage';
+import { coins } from '@cosmjs/proto-signing'
+import { Dec } from '@keplr-wallet/unit'
 
 export default function StakingDashboard() {
   const [stakeAmount, setStakeAmount] = useState(100)
   const [amountToStake, setAmountToStake] = useState(250) // Default to 250 ATOM
   const [apr] = useState(15.12)
   const chainName: ChainName = 'cosmoshub'
-  const { connect, disconnect, openView, status, address, getSigningCosmWasmClient } = useChain(chainName)
+  const { connect, disconnect, openView, status, address, getSigningCosmWasmClient, getCosmWasmClient } = useChain(chainName)
 
+  const [delegatedAtoms, setDelegatedAtoms] = useState<string>('0')
+
+  useEffect(() => {
+    const fetchDelegatedAtoms = async () => {
+      try {
+        const client = await getCosmWasmClient()
+        if (!client) {
+          console.error('No CosmWasm client available')
+          return
+        }
+
+        const validatorAddress = 'cosmosvaloper1clpqr4nrk4khgkxj78fcwwh6dl3uw4epsluffn'
+        const response = await client.staking.validator(validatorAddress)
+        
+        if (response && response.validator && response.validator.tokens) {
+          const atomAmount = new Dec(response.validator.tokens).div(1000000).ceil().toString()
+          setDelegatedAtoms(atomAmount)
+        }
+      } catch (error) {
+        console.error('Error fetching delegated ATOM:', error)
+      }
+    }
+
+    fetchDelegatedAtoms()
+    // Set up an interval to fetch the data every 60 seconds
+    const intervalId = setInterval(fetchDelegatedAtoms, 10000)
+
+    // Clean up the interval on component unmount
+    return () => clearInterval(intervalId)
+  }, [getCosmWasmClient])
+  
   const snapPoints = [0, 100, 250, 500, 1000, 5000, 10000, 50000, 100000, 250000]
   
   // Create a logarithmic scale
@@ -74,9 +109,9 @@ export default function StakingDashboard() {
   }
 
   const handleStake = async () => {
-    if (status !== 'Connected') {
-      openView()
-      return
+    if (!address) {
+      console.error('Address is undefined');
+      return;
     }
 
     try {
@@ -98,7 +133,7 @@ export default function StakingDashboard() {
 
       console.log('Transaction hash:', result.transactionHash)
     } catch (error) {
-      console.error('Staking failed:', error)
+      console.error('Error staking tokens:', error)
     }
   }
 
@@ -147,14 +182,32 @@ export default function StakingDashboard() {
     setAmountToStake(Math.max(0, newAmount))
   }
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 text-white">
-      <header className="bg-gray-800 bg-opacity-50 backdrop-blur-lg p-4 sticky top-0 z-10">
-        <div className="container mx-auto flex justify-between items-center">
-          <div className="flex items-center space-x-2">
-            <Image src="/images/shintogate.png" alt="Shinto Gate" width={40} height={40} />
-            <span className="text-2xl font-bold">Oni</span>
-          </div>
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 text-white">
+        <Head>
+          <title>Oni Staking Dashboard</title>
+          <style jsx global>{`
+            @font-face {
+              font-family: 'Tokio Noir';
+              src: url('/fonts/TokioNoir.otf') format('opentype');
+              font-weight: normal;
+              font-style: normal;
+            }
+          `}</style>
+        </Head>
+        <header className="bg-gray-800 bg-opacity-50 backdrop-blur-lg p-2 sticky top-0 z-10">
+          <div className="container mx-auto flex justify-between items-center">
+            <div className="flex items-center space-x-2">
+              <TintedImage 
+                src="/images/shinto-gate.png" 
+                alt="Shinto Gate" 
+                width={50} 
+                height={50} 
+                tintColor="#FF4B4B"
+              />
+              <span className="text-2xl font-bold font-tokio-noir uppercase">ONI VALIDATOR</span>
+            </div>
+  
           <nav className="hidden md:flex space-x-4">
             {['Staking', 'Protocols', 'Business', 'Blog', 'About Us'].map((item) => (
               <motion.a
@@ -211,7 +264,7 @@ export default function StakingDashboard() {
           {/* Card 2 */}
           <Card className="bg-gray-800 bg-opacity-50 backdrop-blur-lg border-red-600 relative overflow-hidden flex flex-col min-h-[600px]">
             <Image 
-              src="/images/cosmos-stake.jpeg" 
+              src="/images/chains/cosmoshub-4.jpg" 
               alt="Cosmos Stake" 
               fill
               className="object-cover opacity-50"
@@ -366,7 +419,7 @@ export default function StakingDashboard() {
             <div className="h-6 w-px bg-gray-600"></div>
             <div className="text-sm text-white uppercase">
               TOTAL DELEGATED TO ONI:
-              <span className="text-red-600 font-bold ml-2">10,005,000 ATOM</span>
+              <span className="text-red-600 font-bold ml-2">{delegatedAtoms} ATOM</span>
             </div>
           </div>
           <div className="text-white">
