@@ -48,3 +48,5 @@ We should have the staking-dashboard store this state with the time last checked
 Each variable should have it's own state and time state was last changed correctly.
 
 We want to store (token_price), (delegated_token_amount and block_height) and time of last successful update for each variable.
+
+- We want to add a field below the staking box where users can enter a tracking code which will write to the memo field to be recorded on chain. This will track alongside their account. We should capture that field, their wallet address and then write this to a database and whether it's a delegation or re-delegation. We can even create an automated database that'll track their stake or restake start date, add it into a json and we can track super easily that way.

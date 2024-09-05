@@ -16,8 +16,32 @@ export const swapWidgetConfig: SwapWidgetProps = {
     destAssetDenom: 'uatom',
   },
   filter: {
+    source: {
+      'osmosis-1': undefined,
+      'noble-1': undefined,
+      '42161': undefined,
+      '1': undefined, // Ethereum
+      '43114': undefined, // Avalanche
+      'axelar-dojo-1': undefined,
+      '8453': undefined, // Base
+      '56': undefined, // Binance
+      '81457': undefined, // Blast
+      'celestia-1': undefined,
+      'dydx-mainnet-1': undefined,
+      'injective-1': undefined,
+      'kaiyo-1': undefined, // Kujira
+      'kava_2222-10': undefined,
+      'neutron-1': undefined,
+      '10': undefined, // Optimism
+      '137': undefined, // Polygon
+      'pryzm-1': undefined,
+      'solana': undefined,
+      'stride-1': undefined,
+      'wormchain': undefined,
+    },
     destination: {
-      'cosmoshub-4': ['uatom'], // This restricts the destination to Cosmos Hub and ATOM
+      'cosmoshub-4': ['uatom'], // Only allow ATOM as destination on Cosmos Hub
+      'injective-1': ['inj'], // Only allow INJ as destination on Injective
     },
   },
   routeConfig: {
@@ -27,7 +51,7 @@ export const swapWidgetConfig: SwapWidgetProps = {
   },
   className: 'rounded-lg',
   style: { 
-    width: '100%', 
+    // width: '100%', 
     height: 'auto',
     minHeight: '500px', // Adjust this value as needed
     boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
