@@ -28,16 +28,24 @@ export default function StakingDashboard() {
   // Create a logarithmic scale
   const logScale = scaleLog()
     .domain([1, 250000]) // Use 1 as the minimum to avoid log(0)
-    .range([0, snapPoints.length - 1]) // Range from 0 to the number of snap points
+    .range([0, 100]) // Range from 0 to 100 for percentage-based slider
 
   const handleSliderChange = (value: number[]) => {
-    const index = Math.round(value[0])
-    setStakeAmount(snapPoints[index])
+    const scaledValue = Math.round(logScale.invert(value[0]))
+    const closestSnapPoint = snapPoints.reduce((prev, curr) =>
+      Math.abs(curr - scaledValue) < Math.abs(prev - scaledValue) ? curr : prev
+    )
+    
+    // If within 5% of a snap point, snap to it
+    if (Math.abs(scaledValue - closestSnapPoint) / closestSnapPoint < 0.05) {
+      setStakeAmount(closestSnapPoint)
+    } else {
+      setStakeAmount(scaledValue)
+    }
   }
 
   const getSliderValue = (amount: number) => {
-    const index = snapPoints.findIndex(point => point >= amount)
-    return index === -1 ? snapPoints.length - 1 : index
+    return logScale(Math.max(1, amount))
   }
 
   const handleStakeAmountChange = (value: string) => {
@@ -275,14 +283,20 @@ export default function StakingDashboard() {
               <CardTitle className="text-white">CALCULATE YOUR PROFIT</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col flex-grow pt-6">
-              <div className="w-40 h-40 mx-auto mb-12 relative">
-                <Image
-                  src="/images/oni-chan-6.png"
-                  alt="Oni-chan caclulating on an abacus"
-                  fill
-                  className="object-contain"
-                />
-              </div>
+            <div className="w-40 h-40 mx-auto mb-12">
+                <motion.div
+               whileHover={{ rotate: [0, 5, -5, 5, 0], x: [0, 5, -5, 5, 0] }}
+               transition={{ duration: .75 }}
+                >
+                  <Image
+                    src="/images/oni-chan-6.png"
+                    alt="Oni-chan caclulating on an abacus"
+                    width={160}
+                    height={160}
+                    layout="responsive"
+                  />
+                </motion.div>
+    </div>
               <div className="text-center">
                 <Label htmlFor="stakeAmount" className="text-lg font-semibold mb-4 block text-white">ENTER YOUR AMOUNT</Label>
                 <div className="relative max-w-xs mx-auto mb-4">
@@ -316,8 +330,8 @@ export default function StakingDashboard() {
                 <Slider
                   value={[getSliderValue(stakeAmount)]}
                   min={0}
-                  max={snapPoints.length - 1}
-                  step={1}
+                  max={100}
+                  step={0.1}
                   className="max-w-xs mx-auto"
                   onValueChange={handleSliderChange}
                 />
