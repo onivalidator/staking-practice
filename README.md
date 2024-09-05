@@ -34,3 +34,17 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+
+##
+
+Let's add a TODO list to this README.
+
+Under it let's add
+
+- Incorporate a .json to keep and store state of certain variables which are called, so that we can call APIs less often. Include something which records time in UTC.
+
+We should have the staking-dashboard store this state with the time last checked, and if greater than 30 minutes it should query APIs and try to update. It should never write a null value or error to the state json and only update json's last time with a valid query (for each API variable that is called).
+
+Each variable should have it's own state and time state was last changed correctly.
+
+We want to store (token_price), (delegated_token_amount and block_height) and time of last successful update for each variable.

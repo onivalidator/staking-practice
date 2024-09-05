@@ -352,8 +352,11 @@ export default function StakingDashboard() {
                       type="text"
                       inputMode="numeric"
                       pattern="[0-9]*"
-                      value={amountToStake}
-                      onChange={(e) => handleAmountToStakeChange(e.target.value)}
+                      value={`${amountToStake} ATOM`}
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/[^0-9]/g, '');
+                        handleAmountToStakeChange(value);
+                      }}
                       className="bg-gray-700 text-white pl-12 pr-16 text-2xl h-14 w-full"
                     />
                     <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex flex-col">
@@ -420,8 +423,11 @@ export default function StakingDashboard() {
                     type="text"
                     inputMode="numeric"
                     pattern="[0-9]*"
-                    value={stakeAmount}
-                    onChange={(e) => handleStakeAmountChange(e.target.value)}
+                    value={`${stakeAmount} ATOM`}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/[^0-9]/g, '');
+                      handleStakeAmountChange(value);
+                    }}
                     className="bg-gray-700 text-white pl-12 pr-16 text-2xl h-14 text-center"
                   />
                   <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex flex-col">

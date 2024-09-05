@@ -5,6 +5,7 @@ import { ChainProvider } from '@cosmos-kit/react'
 import { chains, assets } from 'chain-registry'
 import { wallets } from "cosmos-kit";
 import "@interchain-ui/react/styles";
+import { ThemeProvider } from '@interchain-ui/react'; // Add this import
 
 import { Inter } from "next/font/google";
 import "./globals.css";
@@ -32,14 +33,29 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <ChainProvider
-          chains={chains} // supported chains
-          assetLists={assets} // supported asset lists
-          wallets={wallets} // supported wallets
-          walletConnectOptions={walletConnectOptions}
+        <ThemeProvider
+          themeDefs={[
+            {
+              name: "custom",
+              vars: {
+                colors: {
+                  primary500: "#FF4B4B",
+                },
+                // Add more custom variables as needed
+              },
+            },
+          ]}
+          customTheme="custom"
         >
-          {children}
-        </ChainProvider>
+          <ChainProvider
+            chains={chains} // supported chains
+            assetLists={assets} // supported asset lists
+            wallets={wallets} // supported wallets
+            walletConnectOptions={walletConnectOptions}
+          >
+            {children}
+          </ChainProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
