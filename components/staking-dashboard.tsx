@@ -17,46 +17,99 @@ import { swapWidgetConfig } from './ui/SwapWidgetConfig'
 import { scaleLog } from 'd3-scale';
 import Head from 'next/head';
 import TintedImage from './process/TintedImage';
-import { coins } from '@cosmjs/proto-signing'
 import { Dec } from '@keplr-wallet/unit'
+import axios from 'axios';
+
+const REST_ENDPOINT = 'https://rest.cosmos.directory/cosmoshub';
+const VALIDATOR_ADDRESS = 'cosmosvaloper16s96n9k9zztdgjy8q4qcxp4hn7ww98qkrka4zk';
 
 export default function StakingDashboard() {
   const [stakeAmount, setStakeAmount] = useState(100)
   const [amountToStake, setAmountToStake] = useState(250) // Default to 250 ATOM
   const [apr] = useState(15.12)
   const chainName: ChainName = 'cosmoshub'
-  const { connect, disconnect, openView, status, address, getSigningCosmWasmClient, getCosmWasmClient } = useChain(chainName)
+  const { connect, disconnect, openView, status, address, getSigningStargateClient } = useChain(chainName)
 
   const [delegatedAtoms, setDelegatedAtoms] = useState<string>('0')
+  const [blockHeight, setBlockHeight] = useState<number | null>(null)
+  const [atomPrice, setAtomPrice] = useState<number | null>(null)
+
+  const fetchAtomPrice = async () => {
+    try {
+      const url = "https://api.coingecko.com/api/v3/simple/price?ids=cosmos&vs_currencies=usd"
+      const response = await axios.get(url)
+      if (response.status !== 200) {
+        throw new Error("Error fetching ATOM price: " + response.status)
+      }
+      const data = response.data
+      setAtomPrice(data.cosmos.usd)
+    } catch (error) {
+      console.error("Failed to fetch ATOM price:", error)
+    }
+  }
+
+  const fetchValidators = async () => {
+    try {
+      const url = `${REST_ENDPOINT}/cosmos/staking/v1beta1/validators?pagination.limit=1000`
+      const response = await axios.get(url)
+      if (response.status !== 200) {
+        throw new Error(`Error fetching validators data: ${response.status}`)
+      }
+      return response.data
+    } catch (error) {
+      console.error("Failed to fetch validators:", error)
+      return null
+    }
+  }
+
+  const fetchLatestBlock = async () => {
+    try {
+      const url = `${REST_ENDPOINT}/cosmos/base/tendermint/v1beta1/blocks/latest`
+      const response = await axios.get(url)
+      if (response.status !== 200) {
+        throw new Error(`Error fetching latest block: ${response.status}`)
+      }
+      return response.data.block.header.height
+    } catch (error) {
+      console.error("Failed to fetch latest block:", error)
+      return null
+    }
+  }
 
   useEffect(() => {
-    const fetchDelegatedAtoms = async () => {
+    const fetchTotalDelegatedAtoms = async () => {
       try {
-        const client = await getCosmWasmClient()
-        if (!client) {
-          console.error('No CosmWasm client available')
-          return
+        const url = `${REST_ENDPOINT}/cosmos/staking/v1beta1/validators?pagination.limit=1000`;
+        
+        console.log('Fetching validators data');
+        const response = await axios.get(url);
+        
+        if (response.status !== 200) {
+          throw new Error(`Error fetching validators data: ${response.status}`);
         }
 
-        const validatorAddress = 'cosmosvaloper1clpqr4nrk4khgkxj78fcwwh6dl3uw4epsluffn'
-        const response = await client.staking.validator(validatorAddress)
-        
-        if (response && response.validator && response.validator.tokens) {
-          const atomAmount = new Dec(response.validator.tokens).div(1000000).ceil().toString()
-          setDelegatedAtoms(atomAmount)
+        const validators = response.data.validators;
+        const ourValidator = validators.find((v: any) => v.operator_address === VALIDATOR_ADDRESS);
+
+        if (ourValidator) {
+          const totalAtomAmount = new Dec(ourValidator.tokens).quo(new Dec(1000000)).round().toString();
+          const formattedAmount = parseInt(totalAtomAmount).toLocaleString();
+          console.log('Total delegated ATOM amount:', formattedAmount);
+          setDelegatedAtoms(formattedAmount);
+        } else {
+          console.log('Validator not found');
+          setDelegatedAtoms('0');
         }
       } catch (error) {
-        console.error('Error fetching delegated ATOM:', error)
+        console.error('Error fetching total delegated ATOM:', error);
+        setDelegatedAtoms('0');
       }
-    }
+    };
 
-    fetchDelegatedAtoms()
-    // Set up an interval to fetch the data every 60 seconds
-    const intervalId = setInterval(fetchDelegatedAtoms, 10000)
-
-    // Clean up the interval on component unmount
-    return () => clearInterval(intervalId)
-  }, [getCosmWasmClient])
+    fetchTotalDelegatedAtoms();
+    const intervalId = setInterval(fetchTotalDelegatedAtoms, 60000); // Fetch every minute
+    return () => clearInterval(intervalId);
+  }, []);
   
   const snapPoints = [0, 100, 250, 500, 1000, 5000, 10000, 50000, 100000, 250000]
   
@@ -115,7 +168,7 @@ export default function StakingDashboard() {
     }
 
     try {
-      const client = await getSigningCosmWasmClient()
+      const client = await getSigningStargateClient()
       if (!client) throw new Error('No signing client')
 
       const fee: StdFee = {
@@ -125,7 +178,7 @@ export default function StakingDashboard() {
 
       const result = await client.delegateTokens(
         address,
-        'cosmosvaloper16s96n9k9zztdgjy8q4qcxp4hn7ww98qkrka4zkcosmosvaloper1clpqr4nrk4khgkxj78fcwwh6dl3uw4epsluffn',
+        VALIDATOR_ADDRESS,
         { denom: 'uatom', amount: (amountToStake * 1000000).toString() },
         fee,
         'Staking via ONI'
@@ -425,6 +478,10 @@ export default function StakingDashboard() {
           <div className="text-white">
             <p>CONNECTED WALLET ADDRESS</p>
             <p className="text-red-600">{address || 'Connect wallet to view address'}</p>
+          </div>
+          <div className="text-white">
+            <p>CURRENT ATOM PRICE</p>
+            <p className="text-red-600">${atomPrice ? atomPrice.toFixed(2) : 'Loading...'}</p>
           </div>
         </div>
       </footer>
