@@ -8,32 +8,54 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Slider } from '@/components/ui/slider'
 import { ChevronUp, ChevronDown } from 'lucide-react'
-import { useChain } from '@cosmos-kit/react'
-import { ChainName } from '@cosmos-kit/core'
-import { StdFee } from '@cosmjs/amino'
 import Image from 'next/image'
 import { SwapWidget } from '@skip-go/widget'
 import { swapWidgetConfig } from './ui/SwapWidgetConfig'
-import { scaleLog } from 'd3-scale';
-import Head from 'next/head';
-import TintedImage from './process/TintedImage';
+import { scaleLog } from 'd3-scale'
+import Head from 'next/head'
+import TintedImage from './process/TintedImage'
 import { Dec } from '@keplr-wallet/unit'
-import axios from 'axios';
+import axios from 'axios'
+import { 
+  MsgDelegate, 
+  BaseAccount,
+  ChainRestAuthApi,
+  createTransaction,
+  TxRaw,
+  TxRestClient,
+  getInjectiveAddress,
+  SIGN_MODE_EIP_712
+} from "@injectivelabs/sdk-ts"
+import { BigNumberInBase } from "@injectivelabs/utils"
+import { getStdFee, DEFAULT_BLOCK_TIMEOUT_HEIGHT } from "@injectivelabs/utils"
+import { WalletStrategy } from '@injectivelabs/wallet-ts'
+import { ChainId, EthereumChainId } from '@injectivelabs/ts-types'
+import { Web3Exception } from '@injectivelabs/exceptions'
+import { Network, getNetworkEndpoints } from '@injectivelabs/networks'
 
-const REST_ENDPOINT = 'https://rest.cosmos.directory/injective';
-const VALIDATOR_ADDRESS = 'injvaloper1f566hkhdhf9s3hskd43nggj7qsc7g0xxtqylr7'; // Replace with actual Injective validator address
+const REST_ENDPOINT = 'https://rest.cosmos.directory/injective'
+const VALIDATOR_ADDRESS = 'injvaloper1f566hkhdhf9s3hskd43nggj7qsc7g0xxtqylr7'
+//Sign mode for Keplr not working yet. EIP712 sign mode is implemented, but now SignMode.SIGN_MODE_DIRECT which is better for Keplr.
+const network = Network.Mainnet
+const endpoints = getNetworkEndpoints(network)
+
+const walletStrategy = new WalletStrategy({
+  chainId: ChainId.Mainnet,
+  ethereumOptions: {
+    ethereumChainId: EthereumChainId.Mainnet,
+    rpcUrl: endpoints.ethereumRpcEndpoint
+  }
+})
 
 export default function StakingDashboard() {
   const [stakeAmount, setStakeAmount] = useState(100)
-  const [amountToStake, setAmountToStake] = useState(250) // Default to 250 INJ
-  const [apr] = useState(13.45) // Update with actual Injective APR
-  const chainName: ChainName = 'injective'
-  const { connect, disconnect, openView, status, address, getSigningStargateClient } = useChain(chainName)
-
+  const [amountToStake, setAmountToStake] = useState<string>('250')
+  const [apr] = useState(13.45)
   const [delegatedInj, setDelegatedInj] = useState<string>('0')
-  const [blockHeight, setBlockHeight] = useState<number | null>(null)
-  const [injPrice, setInjPrice] = useState<number | null>(null);
-  const [rebateCode, setRebateCode] = useState('');
+  const [injPrice, setInjPrice] = useState<number | null>(null)
+  const [rebateCode, setRebateCode] = useState('')
+  const [walletAddress, setWalletAddress] = useState<string | null>(null)
+  const [walletConnected, setWalletConnected] = useState(false)
 
   const fetchInjPrice = async () => {
     try {
@@ -51,7 +73,7 @@ export default function StakingDashboard() {
 
   useEffect(() => {
     fetchInjPrice()
-    const intervalId = setInterval(fetchInjPrice, 60000) // Update every minute
+    const intervalId = setInterval(fetchInjPrice, 60000)
     return () => clearInterval(intervalId)
   }, [])
   
@@ -114,7 +136,7 @@ export default function StakingDashboard() {
     };
 
     fetchTotalDelegatedInj();
-    const intervalId = setInterval(fetchTotalDelegatedInj, 600000); // Fetch every 10 minutes
+    const intervalId = setInterval(fetchTotalDelegatedInj, 600000);
     return () => clearInterval(intervalId);
   }, []);
   
@@ -122,8 +144,8 @@ export default function StakingDashboard() {
   
   // Create a logarithmic scale
   const logScale = scaleLog()
-    .domain([1, 250000]) // Use 1 as the minimum to avoid log(0)
-    .range([0, 100]) // Range from 0 to 100 for percentage-based slider
+    .domain([1, 250000])
+    .range([0, 100])
 
   const handleSliderChange = (value: number[]) => {
     const scaledValue = Math.round(logScale.invert(value[0]))
@@ -160,65 +182,156 @@ export default function StakingDashboard() {
     return ((amount * apr) / 100 / 365 * periodMultiplier).toFixed(2)
   }
 
+  const connectWallet = async () => {
+    try {
+      // Instead of using connect(), we directly call getAddresses()
+      const addresses = await walletStrategy.getAddresses()
+
+      if (addresses.length === 0) {
+        throw new Web3Exception(new Error('There are no addresses linked in this wallet.'))
+      }
+
+      // Set the first address as the connected wallet address
+      const walletAddress = addresses[0]
+      setWalletAddress(walletAddress)
+      setWalletConnected(true)
+
+      console.log('Wallet connected:', walletAddress)
+    } catch (error) {
+      console.error('Error connecting wallet:', error)
+      if (error instanceof Web3Exception) {
+        console.error('Web3 Error:', error.message)
+      }
+    }
+  }
+
+  const disconnectWallet = async () => {
+    try {
+      // There's no specific disconnect method, so we just reset the state
+      setWalletAddress(null)
+      setWalletConnected(false)
+      console.log('Wallet disconnected')
+    } catch (error) {
+      console.error('Error disconnecting wallet:', error)
+    }
+  }
+
   const handleWalletConnection = async () => {
-    if (status === 'Connected') {
-      await disconnect()
+    if (walletConnected) {
+      await disconnectWallet()
     } else {
-      await connect()
+      await connectWallet()
     }
   }
 
   const handleStake = async () => {
-    if (!address) {
-      console.error('Address is undefined');
-      return;
+    if (!walletAddress) {
+      console.error('Wallet not connected')
+      return
     }
 
     try {
-      const client = await getSigningStargateClient()
-      if (!client) throw new Error('No signing client')
+      const chainId = "injective-1" // Define the chain ID for Injective mainnet
 
-      const fee: StdFee = {
-        amount: [{ denom: 'inj', amount: '5000' }],
-        gas: '200000',
+      const injectiveAddress = walletAddress.startsWith('0x') 
+        ? getInjectiveAddress(walletAddress)
+        : walletAddress
+
+      console.log('Injective Address:', injectiveAddress)
+
+      const chainRestAuthApi = new ChainRestAuthApi(endpoints.rest)
+      const accountDetailsResponse = await chainRestAuthApi.fetchAccount(injectiveAddress)
+      console.log('Account Details Response:', accountDetailsResponse)
+
+      const baseAccount = BaseAccount.fromRestApi(accountDetailsResponse)
+      console.log('Base Account:', baseAccount)
+
+      const amount = {
+        amount: new BigNumberInBase(amountToStake).toWei().toFixed(),
+        denom: 'inj'
       }
 
-      // Create the memo with the rebate code if it exists
-      const memo = rebateCode ? `Staking via ONI - Rebate: ${rebateCode}` : 'Staking via ONI';
+      const msg = MsgDelegate.fromJSON({
+        amount,
+        delegatorAddress: injectiveAddress,
+        validatorAddress: VALIDATOR_ADDRESS
+      })
 
-      const result = await client.delegateTokens(
-        address,
-        VALIDATOR_ADDRESS,
-        { denom: 'inj', amount: (amountToStake * 1000000000000000000).toString() },
-        fee,
-        memo // Use the memo here
-      )
+      console.log('Delegate Message:', msg)
 
-      const currentTime = new Date().toISOString();
+      const { txRaw, signDoc } = createTransaction({
+        message: msg,
+        memo: rebateCode ? `ONI Staking - Rebate: ${rebateCode}` : 'ONI Staking',
+        fee: getStdFee(),
+        chainId: network,
+        signMode: SIGN_MODE_EIP_712,
+        sequence: baseAccount.sequence,
+        timeoutHeight: new BigNumberInBase(await chainRestAuthApi.fetchLatestBlockHeight()).plus(DEFAULT_BLOCK_TIMEOUT_HEIGHT).toNumber(),
+        pubKey: baseAccount.pubKey,
+        accountNumber: baseAccount.accountNumber,
+      })
 
-      console.log('Transaction Details:');
-      console.log('--------------------');
-      console.log('Transaction hash:', result.transactionHash);
-      console.log('Wallet address:', address);
-      console.log('Stake amount:', amountToStake, 'INJ');
-      console.log('Chain ID:', chainName);
-      console.log('Timestamp:', currentTime);
-      console.log('Memo used:', memo);
-      console.log('Rebate code entered:', rebateCode);
+      console.log('TxRaw:', txRaw)
+      console.log('SignDoc:', signDoc)
 
-      // Clear the rebate code after successful staking
-      setRebateCode('');
+      const signResponse = await walletStrategy.signCosmosTransaction({
+        txRaw,
+        accountNumber: baseAccount.accountNumber,
+        chainId: network,
+      }, injectiveAddress)
+
+      console.log('Sign Response:', signResponse)
+
+      const txService = new TxRestClient(endpoints.rest)
+      const txResponse = await txService.broadcast(signResponse.txRaw)
+
+      console.log('Transaction Response:', txResponse)
+
+      if (txResponse.code !== 0) {
+        throw new Error(`Transaction failed: ${txResponse.rawLog}`)
+      }
+
+      console.log('Transaction successful!')
+      console.log('Transaction hash:', txResponse.txHash)
+      setRebateCode('')
 
     } catch (error) {
-      console.error('Error staking tokens:', error)
+      console.error('Error in handleStake:', error)
+      if (error instanceof Error) {
+        console.error('Error message:', error.message)
+        console.error('Error stack:', error.stack)
+      }
     }
   }
 
   const handleAmountToStakeChange = (value: string) => {
-    const numValue = value === '' ? 0 : parseInt(value, 10);
-    if (!isNaN(numValue)) {
-      setAmountToStake(Math.max(0, numValue));
+    // Allow only numbers and a single decimal point
+    const regex = /^(\d*\.?\d{0,18}|\.\d{0,18})$/;
+    if (regex.test(value) || value === '') {
+      setAmountToStake(value);
     }
+  }
+
+  const handleIncrementDecrementStake = (increment: boolean) => {
+    const currentAmount = parseFloat(amountToStake) || 0;
+    let step = 0.1;
+    if (currentAmount >= 10000) {
+      step = 1000;
+    } else if (currentAmount >= 5000) {
+      step = 500;
+    } else if (currentAmount >= 1000) {
+      step = 100;
+    } else if (currentAmount >= 200) {
+      step = 10;
+    } else if (currentAmount >= 50) {
+      step = 1;
+    }
+
+    const newAmount = increment
+      ? currentAmount + step
+      : Math.max(0, currentAmount - step);
+
+    setAmountToStake(newAmount.toFixed(6));
   }
 
   const handleIncrementDecrement = (increment: boolean) => {
@@ -238,25 +351,6 @@ export default function StakingDashboard() {
       : Math.ceil(stakeAmount / step) * step - step
 
     setStakeAmount(Math.max(0, newAmount))
-  }
-
-  const handleIncrementDecrementStake = (increment: boolean) => {
-    let step = 10
-    if (amountToStake >= 10000) {
-      step = 2000
-    } else if (amountToStake >= 5000) {
-      step = 1000
-    } else if (amountToStake >= 1000) {
-      step = 100
-    } else if (amountToStake >= 200) {
-      step = 50
-    }
-
-    const newAmount = increment
-      ? Math.floor(amountToStake / step) * step + step
-      : Math.ceil(amountToStake / step) * step - step
-
-    setAmountToStake(Math.max(0, newAmount))
   }
 
     return (
@@ -305,7 +399,7 @@ export default function StakingDashboard() {
                 variant="outline"
                 className="bg-transparent border-[#FF4B4B] text-[#FF4B4B] hover:bg-[#FF4B4B] hover:text-white transition-colors"
               >
-                {status === 'Connected' ? 'Disconnect' : 'Connect Wallet'}
+                {walletConnected ? 'Disconnect Wallet' : 'Connect Wallet'}
               </Button>
             </motion.div>
             <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
@@ -373,13 +467,9 @@ export default function StakingDashboard() {
                     <Input
                       id="amountToStake"
                       type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      value={`${amountToStake} INJ`}
-                      onChange={(e) => {
-                        const value = e.target.value.replace(/[^0-9]/g, '');
-                        handleAmountToStakeChange(value);
-                      }}
+                      inputMode="decimal"
+                      value={amountToStake}
+                      onChange={(e) => handleAmountToStakeChange(e.target.value)}
                       className="bg-gray-700 text-white pl-12 pr-16 text-2xl h-14 w-full"
                     />
                     <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex flex-col">
@@ -538,7 +628,7 @@ export default function StakingDashboard() {
           </div>
           <div className="text-white">
             <p>CONNECTED WALLET ADDRESS</p>
-            <p className="text-red-600">{address || 'Connect wallet to view address'}</p>
+            <p className="text-red-600">{walletAddress || 'Connect wallet to view address'}</p>
           </div>
           <div className="text-white">
             <p>CURRENT INJ PRICE</p>
