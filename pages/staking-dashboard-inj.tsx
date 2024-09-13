@@ -7,50 +7,72 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Slider } from '@/components/ui/slider'
-import { Atom, ChevronUp, ChevronDown } from 'lucide-react'
-import { useChain } from '@cosmos-kit/react'
-import { ChainName } from '@cosmos-kit/core'
-import { StdFee } from '@cosmjs/amino'
+import { ChevronUp, ChevronDown } from 'lucide-react'
 import Image from 'next/image'
 import { SwapWidget } from '@skip-go/widget'
-import { swapWidgetConfig } from './ui/SwapWidgetConfig'
-import { scaleLog } from 'd3-scale';
-import Head from 'next/head';
-import TintedImage from './process/TintedImage';
+import { swapWidgetConfig } from '../utils/SwapWidgetConfig'
+import { scaleLog } from 'd3-scale'
+import Head from 'next/head'
+import { TintedImage } from '../components/TintedImage'
 import { Dec } from '@keplr-wallet/unit'
-import axios from 'axios';
+import axios from 'axios'
+import { 
+  MsgDelegate, 
+  BaseAccount,
+  ChainRestAuthApi,
+  ChainRestTendermintApi,
+  createTransaction,
+  TxRaw,
+  TxRestClient,
+  getInjectiveAddress
+} from "@injectivelabs/sdk-ts"
+import { BigNumber } from "@injectivelabs/utils"
+import { getStdFee } from "@injectivelabs/utils"
+import { WalletStrategy } from '@injectivelabs/wallet-ts'
+import { ChainId, EthereumChainId } from '@injectivelabs/ts-types'
+import { getNetworkEndpoints, Network } from '@injectivelabs/networks'
 
-const REST_ENDPOINT = 'https://rest.cosmos.directory/cosmoshub';
-const VALIDATOR_ADDRESS = 'cosmosvaloper16s96n9k9zztdgjy8q4qcxp4hn7ww98qkrka4zk';
+const REST_ENDPOINT = 'https://rest.cosmos.directory/injective'
+const VALIDATOR_ADDRESS = 'injvaloper1f566hkhdhf9s3hskd43nggj7qsc7g0xxtqylr7'
+
+const network = Network.Mainnet
+const endpoints = getNetworkEndpoints(network)
+
+const walletStrategy = new WalletStrategy({
+  chainId: ChainId.Mainnet,
+  ethereumOptions: {
+    ethereumChainId: EthereumChainId.Mainnet,
+    rpcUrl: endpoints.ethereumRpcEndpoint
+  }
+})
 
 export default function StakingDashboard() {
   const [stakeAmount, setStakeAmount] = useState(100)
-  const [amountToStake, setAmountToStake] = useState(250) // Default to 250 ATOM
-  const [apr] = useState(15.12)
-  const chainName: ChainName = 'cosmoshub'
-  const { connect, disconnect, openView, status, address, getSigningStargateClient } = useChain(chainName)
+  const [amountToStake, setAmountToStake] = useState<string>('250')
+  const [apr] = useState(13.45)
+  const [delegatedInj, setDelegatedInj] = useState<string>('0')
+  const [injPrice, setInjPrice] = useState<number | null>(null)
+  const [rebateCode, setRebateCode] = useState('')
+  const [walletAddress, setWalletAddress] = useState<string | null>(null)
+  const [walletConnected, setWalletConnected] = useState(false)
 
-  const [delegatedAtoms, setDelegatedAtoms] = useState<string>('0')
-  const [blockHeight, setBlockHeight] = useState<number | null>(null)
-  const [atomPrice, setAtomPrice] = useState<number | null>(null);
-
-  const fetchAtomPrice = async () => {
+  const fetchInjPrice = async () => {
     try {
-      const url = "https://api.coingecko.com/api/v3/simple/price?ids=cosmos&vs_currencies=usd"
+      const url = "https://api.coingecko.com/api/v3/simple/price?ids=injective-protocol&vs_currencies=usd"
       const response = await axios.get(url)
       if (response.status !== 200) {
-        throw new Error("Error fetching ATOM price: " + response.status)
+        throw new Error("Error fetching INJ price: " + response.status)
       }
       const data = response.data
-      setAtomPrice(data.cosmos.usd)
+      setInjPrice(data['injective-protocol'].usd)
     } catch (error) {
-      console.error("Failed to fetch ATOM price:", error)
+      console.error("Failed to fetch INJ price:", error)
     }
   }
 
   useEffect(() => {
-    fetchAtomPrice()
-    const intervalId = setInterval(fetchAtomPrice, 60000) // Update every minute
+    fetchInjPrice()
+    const intervalId = setInterval(fetchInjPrice, 60000)
     return () => clearInterval(intervalId)
   }, [])
   
@@ -70,7 +92,7 @@ export default function StakingDashboard() {
 
   const fetchLatestBlock = async () => {
     try {
-      const url = `${REST_ENDPOINT}/cosmos/base/tendermint/v1beta1/blocks/latest`
+      const url = `${REST_ENDPOINT}/injective/base/tendermint/v1beta1/blocks/latest`
       const response = await axios.get(url)
       if (response.status !== 200) {
         throw new Error(`Error fetching latest block: ${response.status}`)
@@ -83,7 +105,7 @@ export default function StakingDashboard() {
   }
 
   useEffect(() => {
-    const fetchTotalDelegatedAtoms = async () => {
+    const fetchTotalDelegatedInj = async () => {
       try {
         const url = `${REST_ENDPOINT}/cosmos/staking/v1beta1/validators?pagination.limit=1000`;
         
@@ -98,22 +120,22 @@ export default function StakingDashboard() {
         const ourValidator = validators.find((v: any) => v.operator_address === VALIDATOR_ADDRESS);
 
         if (ourValidator) {
-          const totalAtomAmount = new Dec(ourValidator.tokens).quo(new Dec(1000000)).round().toString();
-          const formattedAmount = parseInt(totalAtomAmount).toLocaleString();
-          console.log('Total delegated ATOM amount:', formattedAmount);
-          setDelegatedAtoms(formattedAmount);
+          const totalInjAmount = new Dec(ourValidator.tokens).quo(new Dec(1000000000000000000)).round().toString();
+          const formattedAmount = parseInt(totalInjAmount).toLocaleString();
+          console.log('Total delegated INJ amount:', formattedAmount);
+          setDelegatedInj(formattedAmount);
         } else {
           console.log('Validator not found');
-          setDelegatedAtoms('0');
+          setDelegatedInj('0');
         }
       } catch (error) {
-        console.error('Error fetching total delegated ATOM:', error);
-        setDelegatedAtoms('0');
+        console.error('Error fetching total delegated INJ:', error);
+        setDelegatedInj('0');
       }
     };
 
-    fetchTotalDelegatedAtoms();
-    const intervalId = setInterval(fetchTotalDelegatedAtoms, 600000); // Fetch every minute
+    fetchTotalDelegatedInj();
+    const intervalId = setInterval(fetchTotalDelegatedInj, 600000);
     return () => clearInterval(intervalId);
   }, []);
   
@@ -121,8 +143,8 @@ export default function StakingDashboard() {
   
   // Create a logarithmic scale
   const logScale = scaleLog()
-    .domain([1, 250000]) // Use 1 as the minimum to avoid log(0)
-    .range([0, 100]) // Range from 0 to 100 for percentage-based slider
+    .domain([1, 250000])
+    .range([0, 100])
 
   const handleSliderChange = (value: number[]) => {
     const scaledValue = Math.round(logScale.invert(value[0]))
@@ -159,48 +181,206 @@ export default function StakingDashboard() {
     return ((amount * apr) / 100 / 365 * periodMultiplier).toFixed(2)
   }
 
+  const connectWallet = async () => {
+    try {
+      // Instead of using connect(), we directly call getAddresses()
+      const addresses = await walletStrategy.getAddresses()
+
+      if (addresses.length === 0) {
+        throw new Web3Exception(new Error('There are no addresses linked in this wallet.'))
+      }
+
+      // Set the first address as the connected wallet address
+      const walletAddress = addresses[0]
+      setWalletAddress(walletAddress)
+      setWalletConnected(true)
+
+      console.log('Wallet connected:', walletAddress)
+    } catch (error) {
+      console.error('Error connecting wallet:', error)
+      if (error instanceof Web3Exception) {
+        console.error('Web3 Error:', error.message)
+      }
+    }
+  }
+
+  const disconnectWallet = async () => {
+    try {
+      // There's no specific disconnect method, so we just reset the state
+      setWalletAddress(null)
+      setWalletConnected(false)
+      console.log('Wallet disconnected')
+    } catch (error) {
+      console.error('Error disconnecting wallet:', error)
+    }
+  }
+
   const handleWalletConnection = async () => {
-    if (status === 'Connected') {
-      await disconnect()
+    if (walletConnected) {
+      await disconnectWallet()
     } else {
-      await connect()
+      await connectWallet()
     }
   }
 
   const handleStake = async () => {
-    if (!address) {
-      console.error('Address is undefined');
-      return;
+    if (!walletAddress) {
+      console.error('Wallet not connected')
+      return
     }
 
-    try {
-      const client = await getSigningStargateClient()
-      if (!client) throw new Error('No signing client')
+    if (!amountToStake || isNaN(Number(amountToStake))) {
+      console.error('Invalid stake amount')
+      return
+    }
 
-      const fee: StdFee = {
-        amount: [{ denom: 'uatom', amount: '5000' }],
-        gas: '200000',
+    const chainId = "injective-1" // Define chainId at the beginning of the function
+
+    try {
+      // Initialize the offline signer
+      if (walletAddress.startsWith('0x')) {
+        // For MetaMask or other Ethereum wallets
+        if (!window.ethereum) {
+          throw new Error('Ethereum wallet not found');
+        }
+        // Instead of using connect(), we directly call getAddresses()
+        const addresses = await walletStrategy.getAddresses()
+
+        if (addresses.length === 0) {
+          throw new Error('There are no addresses linked in this wallet.')
+        }
+
+        // The first address is typically the active one
+        const ethereumAddress = addresses[0]
+        console.log('Ethereum Address:', ethereumAddress)
+      } else {
+        // For Keplr
+        if (!window.keplr) {
+          throw new Error('Keplr wallet not found');
+        }
+        await window.keplr.enable(chainId);
+        const offlineSigner = window.keplr.getOfflineSigner(chainId);
+        await offlineSigner.getAccounts();
       }
 
-      const result = await client.delegateTokens(
-        address,
-        VALIDATOR_ADDRESS,
-        { denom: 'uatom', amount: (amountToStake * 1000000).toString() },
-        fee,
-        'Staking via ONI'
-      )
+      const injectiveAddress = walletAddress.startsWith('0x') 
+        ? getInjectiveAddress(walletAddress)
+        : walletAddress
 
-      console.log('Transaction hash:', result.transactionHash)
+      console.log('Injective Address:', injectiveAddress)
+
+      const chainRestAuthApi = new ChainRestAuthApi(endpoints.rest)
+      const accountDetailsResponse = await chainRestAuthApi.fetchAccount(injectiveAddress)
+      const baseAccount = BaseAccount.fromRestApi(accountDetailsResponse)
+
+      const chainRestTendermintApi = new ChainRestTendermintApi(endpoints.rest)
+      const latestBlock = await chainRestTendermintApi.fetchLatestBlock()
+      const latestHeight = latestBlock.header.height
+
+      const amount = {
+        amount: new BigNumber(amountToStake).multipliedBy(1e18).toFixed(0),
+        denom: 'inj'
+      }
+
+      console.log('Amount:', amount);
+
+      const msg = MsgDelegate.fromJSON({
+        amount,
+        delegatorAddress: injectiveAddress,
+        validatorAddress: 'injvaloper1f566hkhdhf9s3hskd43nggj7qsc7g0xxtqylr7'
+      })
+
+      console.log('Delegate Message:', msg);
+
+      const fee = getStdFee(350480) // Adjust gas as needed
+
+      const { txRaw, signDoc } = createTransaction({
+        message: msg,
+        memo: '',
+        fee,
+        chainId,
+        sequence: baseAccount.sequence,
+        timeoutHeight: new BigNumber(latestHeight).plus(100).toNumber(),
+        pubKey: baseAccount.pubKey,
+        accountNumber: baseAccount.accountNumber,
+      })
+
+      console.log('Sign Doc:', signDoc)
+
+      let signResponse
+      if (walletAddress.startsWith('0x')) {
+        // MetaMask
+        signResponse = await walletStrategy.signCosmosTransaction({
+          txRaw,
+          accountNumber: baseAccount.accountNumber,
+          chainId,
+        }, injectiveAddress)
+      } else {
+        // Keplr
+        signResponse = await window.keplr.signDirect(
+          chainId,
+          injectiveAddress,
+          {
+            bodyBytes: TxRaw.encode(txRaw).finish(),
+            authInfoBytes: txRaw.authInfoBytes,
+            chainId: chainId,
+            accountNumber: baseAccount.accountNumber,
+          },
+          { preferNoSetFee: false }
+        )
+      }
+
+      console.log('Sign Response:', signResponse)
+
+      const txService = new TxRestClient(endpoints.rest)
+      const txResponse = await txService.broadcast(signResponse.signed ? TxRaw.fromPartial(signResponse.signed) : signResponse.txRaw)
+
+      console.log('Transaction Response:', txResponse)
+
+      if (txResponse.code !== 0) {
+        throw new Error(`Transaction failed: ${txResponse.rawLog}`)
+      }
+
+      console.log('Transaction successful!')
+      console.log('Transaction hash:', txResponse.txHash)
+
     } catch (error) {
-      console.error('Error staking tokens:', error)
+      console.error('Error in handleStake:', error)
+      if (error instanceof Error) {
+        console.error('Error message:', error.message)
+        console.error('Error stack:', error.stack)
+      }
     }
   }
 
   const handleAmountToStakeChange = (value: string) => {
-    const numValue = value === '' ? 0 : parseInt(value, 10);
-    if (!isNaN(numValue)) {
-      setAmountToStake(Math.max(0, numValue));
+    // Allow only numbers and a single decimal point
+    const regex = /^(\d*\.?\d{0,18}|\.\d{0,18})$/;
+    if (regex.test(value) || value === '') {
+      setAmountToStake(value);
     }
+  }
+
+  const handleIncrementDecrementStake = (increment: boolean) => {
+    const currentAmount = parseFloat(amountToStake) || 0;
+    let step = 0.1;
+    if (currentAmount >= 10000) {
+      step = 1000;
+    } else if (currentAmount >= 5000) {
+      step = 500;
+    } else if (currentAmount >= 1000) {
+      step = 100;
+    } else if (currentAmount >= 200) {
+      step = 10;
+    } else if (currentAmount >= 50) {
+      step = 1;
+    }
+
+    const newAmount = increment
+      ? currentAmount + step
+      : Math.max(0, currentAmount - step);
+
+    setAmountToStake(newAmount.toFixed(6));
   }
 
   const handleIncrementDecrement = (increment: boolean) => {
@@ -222,29 +402,10 @@ export default function StakingDashboard() {
     setStakeAmount(Math.max(0, newAmount))
   }
 
-  const handleIncrementDecrementStake = (increment: boolean) => {
-    let step = 10
-    if (amountToStake >= 10000) {
-      step = 2000
-    } else if (amountToStake >= 5000) {
-      step = 1000
-    } else if (amountToStake >= 1000) {
-      step = 100
-    } else if (amountToStake >= 200) {
-      step = 50
-    }
-
-    const newAmount = increment
-      ? Math.floor(amountToStake / step) * step + step
-      : Math.ceil(amountToStake / step) * step - step
-
-    setAmountToStake(Math.max(0, newAmount))
-  }
-
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 text-white">
         <Head>
-          <title>Oni Staking Dashboard</title>
+          <title>Oni Staking Dashboard - Injective</title>
           <style jsx global>{`
             @font-face {
               font-family: 'Tokio Noir';
@@ -287,7 +448,7 @@ export default function StakingDashboard() {
                 variant="outline"
                 className="bg-transparent border-[#FF4B4B] text-[#FF4B4B] hover:bg-[#FF4B4B] hover:text-white transition-colors"
               >
-                {status === 'Connected' ? 'Disconnect' : 'Connect Wallet'}
+                {walletConnected ? 'Disconnect Wallet' : 'Connect Wallet'}
               </Button>
             </motion.div>
             <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
@@ -298,12 +459,12 @@ export default function StakingDashboard() {
       </header>
 
       <main className="container mx-auto mt-8 px-4 pb-16">
-        <h1 className="text-4xl font-bold mb-8">EARN ATOM REWARDS</h1>
+        <h1 className="text-4xl font-bold mb-8">EARN INJECTIVE REWARDS</h1>
         <div className="grid md:grid-cols-3 gap-8">
           {/* Card 1 */}
           <Card className="bg-gray-800 bg-opacity-50 backdrop-blur-lg border-red-600 flex flex-col p-0 overflow-hidden">
             <CardHeader className="text-center border-b border-gray-700 pb-4">
-              <CardTitle className="text-white">SWAP ANY TOKEN TO ATOM</CardTitle>
+              <CardTitle className="text-white">SWAP ANY TOKEN TO INJ</CardTitle>
             </CardHeader>
             <CardContent className="flex-grow p-0">
               <div className="w-full h-full flex items-center justify-center">
@@ -323,17 +484,17 @@ export default function StakingDashboard() {
           {/* Card 2 */}
           <Card className="bg-gray-800 bg-opacity-50 backdrop-blur-lg border-red-600 relative overflow-hidden flex flex-col min-h-[600px]">
             <Image 
-              src="/images/chains/cosmoshub-4.jpg" 
-              alt="Cosmos Stake" 
+              src="/images/chains/injective-1.jpg" 
+              alt="Injective Stake" 
               fill
               className="object-cover opacity-50"
             />
             <CardHeader className="text-center border-b border-gray-700 pb-4 relative z-10">
-              <CardTitle className="text-white">STAKE YOUR ATOM TO EARN REWARDS</CardTitle>
+              <CardTitle className="text-white">STAKE YOUR INJ TO EARN REWARDS</CardTitle>
             </CardHeader>
             <CardContent className="relative z-10 flex flex-col flex-grow pt-6">
               <div className="mb-auto">
-                <p className="mb-4 text-white">You can safely stake your ATOM by following these steps:</p>
+                <p className="mb-4 text-white">You can safely stake your INJ by following these steps:</p>
                 <ol className="list-decimal list-inside mb-4 text-white">
                   <li>Connect your wallet</li>
                   <li>Enter the amount you want to stake</li>
@@ -345,18 +506,19 @@ export default function StakingDashboard() {
                   <Label htmlFor="amountToStake" className="text-lg font-semibold mb-2 block text-white">Amount to stake</Label>
                   <div className="relative w-full">
                     <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
-                      <Atom className="h-6 w-6 text-white" />
+                      <Image
+                        src="/images/logos/inj-logo.png"
+                        alt="INJ Logo"
+                        width={24}
+                        height={24}
+                      />
                     </div>
                     <Input
                       id="amountToStake"
                       type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      value={`${amountToStake} ATOM`}
-                      onChange={(e) => {
-                        const value = e.target.value.replace(/[^0-9]/g, '');
-                        handleAmountToStakeChange(value);
-                      }}
+                      inputMode="decimal"
+                      value={amountToStake}
+                      onChange={(e) => handleAmountToStakeChange(e.target.value)}
                       className="bg-gray-700 text-white pl-12 pr-16 text-2xl h-14 w-full"
                     />
                     <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex flex-col">
@@ -375,6 +537,22 @@ export default function StakingDashboard() {
                     </div>
                   </div>
                 </div>
+                
+                {/* New Rebate Code input */}
+                <div className="mb-4">
+                  <Label htmlFor="rebateCode" className="text-lg font-semibold mb-2 block text-white">Rebate Code</Label>
+                  <div className="relative w-full">
+                    <Input
+                      id="rebateCode"
+                      type="text"
+                      value={rebateCode}
+                      onChange={(e) => setRebateCode(e.target.value)}
+                      className="bg-gray-700 text-white pl-4 pr-4 text-lg h-14 w-full"
+                      placeholder="Staking rebate code, if any..."
+                    />
+                  </div>
+                </div>
+
                 <motion.div
                   whileHover={{ scale: 1.00, rotate: 0.7 }}
                   whileTap={{ scale: 0.98 }}
@@ -416,14 +594,19 @@ export default function StakingDashboard() {
                 <Label htmlFor="stakeAmount" className="text-lg font-semibold mb-4 block text-white">ENTER YOUR AMOUNT</Label>
                 <div className="relative max-w-xs mx-auto mb-4">
                   <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
-                    <Atom className="h-6 w-6 text-white" />
+                    <Image
+                      src="/images/logos/inj-logo.png"
+                      alt="INJ Logo"
+                      width={24}
+                      height={24}
+                    />
                   </div>
                   <Input
                     id="stakeAmount"
                     type="text"
                     inputMode="numeric"
                     pattern="[0-9]*"
-                    value={`${stakeAmount} ATOM`}
+                    value={`${stakeAmount} INJ`}
                     onChange={(e) => {
                       const value = e.target.value.replace(/[^0-9]/g, '');
                       handleStakeAmountChange(value);
@@ -462,7 +645,7 @@ export default function StakingDashboard() {
                       <span className="text-gray-400 capitalize">{period}</span>
                       <span className="text-xl font-bold">
                         <span className="text-red-600">{calculateProfit(stakeAmount, period as 'daily' | 'monthly' | 'yearly')}</span>
-                        <span className="text-sm font-normal ml-1 text-white">ATOM</span>
+                        <span className="text-sm font-normal ml-1 text-white">INJ</span>
                       </span>
                     </div>
                     {index < 2 && <div className="border-b border-gray-700"></div>}
@@ -478,22 +661,27 @@ export default function StakingDashboard() {
         <div className="container mx-auto flex justify-between items-center">
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-2">
-              <Atom className="h-6 w-6" />
-              <span className="uppercase">COSMOS</span>
+              <Image
+                src="/images/logos/inj-logo.png"
+                alt="INJ Logo"
+                width={24}
+                height={24}
+              />
+              <span className="uppercase">INJECTIVE</span>
             </div>
             <div className="h-6 w-px bg-gray-600"></div>
             <div className="text-sm text-white uppercase">
               TOTAL DELEGATED TO ONI:
-              <span className="text-red-600 font-bold ml-2">{delegatedAtoms} ATOM</span>
+              <span className="text-red-600 font-bold ml-2">{delegatedInj} INJ</span>
             </div>
           </div>
           <div className="text-white">
             <p>CONNECTED WALLET ADDRESS</p>
-            <p className="text-red-600">{address || 'Connect wallet to view address'}</p>
+            <p className="text-red-600">{walletAddress || 'Connect wallet to view address'}</p>
           </div>
           <div className="text-white">
-            <p>CURRENT ATOM PRICE</p>
-            <p className="text-red-600">${atomPrice ? atomPrice.toFixed(2) : 'Loading...'}</p>
+            <p>CURRENT INJ PRICE</p>
+            <p className="text-red-600">${injPrice ? injPrice.toFixed(2) : 'Loading...'}</p>
           </div>
         </div>
       </footer>

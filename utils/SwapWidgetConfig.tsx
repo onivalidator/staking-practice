@@ -1,14 +1,13 @@
 import { SwapWidgetProps } from '@skip-go/widget';
 
 export const swapWidgetConfig: SwapWidgetProps = {
-   
   theme: {
-      backgroundColor: '#1F2937',
-      textColor: '#FFFFFF',
-      borderColor: '#374151',
-      brandColor: '#FF4B4B',
-      highlightColor: '#4B5563',
-    },
+    backgroundColor: '#1F2937',
+    textColor: '#FFFFFF',
+    borderColor: '#374151',
+    brandColor: '#FF4B4B',
+    highlightColor: '#4B5563',
+  },
   defaultRoute: {
     srcChainID: 'osmosis-1',
     destChainID: 'cosmoshub-4',
