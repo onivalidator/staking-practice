@@ -20,22 +20,21 @@ import {
   MsgDelegate, 
   BaseAccount,
   ChainRestAuthApi,
+  ChainRestTendermintApi,
   createTransaction,
   TxRaw,
   TxRestClient,
-  getInjectiveAddress,
-  SIGN_MODE_EIP_712
+  getInjectiveAddress
 } from "@injectivelabs/sdk-ts"
-import { BigNumberInBase } from "@injectivelabs/utils"
-import { getStdFee, DEFAULT_BLOCK_TIMEOUT_HEIGHT } from "@injectivelabs/utils"
+import { BigNumber } from "@injectivelabs/utils"
+import { getStdFee } from "@injectivelabs/utils"
 import { WalletStrategy } from '@injectivelabs/wallet-ts'
 import { ChainId, EthereumChainId } from '@injectivelabs/ts-types'
-import { Web3Exception } from '@injectivelabs/exceptions'
-import { Network, getNetworkEndpoints } from '@injectivelabs/networks'
+import { getNetworkEndpoints, Network } from '@injectivelabs/networks'
 
 const REST_ENDPOINT = 'https://rest.cosmos.directory/injective'
 const VALIDATOR_ADDRESS = 'injvaloper1f566hkhdhf9s3hskd43nggj7qsc7g0xxtqylr7'
-//Sign mode for Keplr not working yet. EIP712 sign mode is implemented, but now SignMode.SIGN_MODE_DIRECT which is better for Keplr.
+
 const network = Network.Mainnet
 const endpoints = getNetworkEndpoints(network)
 
@@ -230,8 +229,39 @@ export default function StakingDashboard() {
       return
     }
 
+    if (!amountToStake || isNaN(Number(amountToStake))) {
+      console.error('Invalid stake amount')
+      return
+    }
+
+    const chainId = "injective-1" // Define chainId at the beginning of the function
+
     try {
-      const chainId = "injective-1" // Define the chain ID for Injective mainnet
+      // Initialize the offline signer
+      if (walletAddress.startsWith('0x')) {
+        // For MetaMask or other Ethereum wallets
+        if (!window.ethereum) {
+          throw new Error('Ethereum wallet not found');
+        }
+        // Instead of using connect(), we directly call getAddresses()
+        const addresses = await walletStrategy.getAddresses()
+
+        if (addresses.length === 0) {
+          throw new Error('There are no addresses linked in this wallet.')
+        }
+
+        // The first address is typically the active one
+        const ethereumAddress = addresses[0]
+        console.log('Ethereum Address:', ethereumAddress)
+      } else {
+        // For Keplr
+        if (!window.keplr) {
+          throw new Error('Keplr wallet not found');
+        }
+        await window.keplr.enable(chainId);
+        const offlineSigner = window.keplr.getOfflineSigner(chainId);
+        await offlineSigner.getAccounts();
+      }
 
       const injectiveAddress = walletAddress.startsWith('0x') 
         ? getInjectiveAddress(walletAddress)
@@ -241,49 +271,69 @@ export default function StakingDashboard() {
 
       const chainRestAuthApi = new ChainRestAuthApi(endpoints.rest)
       const accountDetailsResponse = await chainRestAuthApi.fetchAccount(injectiveAddress)
-      console.log('Account Details Response:', accountDetailsResponse)
-
       const baseAccount = BaseAccount.fromRestApi(accountDetailsResponse)
-      console.log('Base Account:', baseAccount)
+
+      const chainRestTendermintApi = new ChainRestTendermintApi(endpoints.rest)
+      const latestBlock = await chainRestTendermintApi.fetchLatestBlock()
+      const latestHeight = latestBlock.header.height
 
       const amount = {
-        amount: new BigNumberInBase(amountToStake).toWei().toFixed(),
+        amount: new BigNumber(amountToStake).multipliedBy(1e18).toFixed(0),
         denom: 'inj'
       }
+
+      console.log('Amount:', amount);
 
       const msg = MsgDelegate.fromJSON({
         amount,
         delegatorAddress: injectiveAddress,
-        validatorAddress: VALIDATOR_ADDRESS
+        validatorAddress: 'injvaloper1f566hkhdhf9s3hskd43nggj7qsc7g0xxtqylr7'
       })
 
-      console.log('Delegate Message:', msg)
+      console.log('Delegate Message:', msg);
+
+      const fee = getStdFee(350480) // Adjust gas as needed
 
       const { txRaw, signDoc } = createTransaction({
         message: msg,
-        memo: rebateCode ? `ONI Staking - Rebate: ${rebateCode}` : 'ONI Staking',
-        fee: getStdFee(),
-        chainId: network,
-        signMode: SIGN_MODE_EIP_712,
+        memo: '',
+        fee,
+        chainId,
         sequence: baseAccount.sequence,
-        timeoutHeight: new BigNumberInBase(await chainRestAuthApi.fetchLatestBlockHeight()).plus(DEFAULT_BLOCK_TIMEOUT_HEIGHT).toNumber(),
+        timeoutHeight: new BigNumber(latestHeight).plus(100).toNumber(),
         pubKey: baseAccount.pubKey,
         accountNumber: baseAccount.accountNumber,
       })
 
-      console.log('TxRaw:', txRaw)
-      console.log('SignDoc:', signDoc)
+      console.log('Sign Doc:', signDoc)
 
-      const signResponse = await walletStrategy.signCosmosTransaction({
-        txRaw,
-        accountNumber: baseAccount.accountNumber,
-        chainId: network,
-      }, injectiveAddress)
+      let signResponse
+      if (walletAddress.startsWith('0x')) {
+        // MetaMask
+        signResponse = await walletStrategy.signCosmosTransaction({
+          txRaw,
+          accountNumber: baseAccount.accountNumber,
+          chainId,
+        }, injectiveAddress)
+      } else {
+        // Keplr
+        signResponse = await window.keplr.signDirect(
+          chainId,
+          injectiveAddress,
+          {
+            bodyBytes: TxRaw.encode(txRaw).finish(),
+            authInfoBytes: txRaw.authInfoBytes,
+            chainId: chainId,
+            accountNumber: baseAccount.accountNumber,
+          },
+          { preferNoSetFee: false }
+        )
+      }
 
       console.log('Sign Response:', signResponse)
 
       const txService = new TxRestClient(endpoints.rest)
-      const txResponse = await txService.broadcast(signResponse.txRaw)
+      const txResponse = await txService.broadcast(signResponse.signed ? TxRaw.fromPartial(signResponse.signed) : signResponse.txRaw)
 
       console.log('Transaction Response:', txResponse)
 
@@ -293,7 +343,6 @@ export default function StakingDashboard() {
 
       console.log('Transaction successful!')
       console.log('Transaction hash:', txResponse.txHash)
-      setRebateCode('')
 
     } catch (error) {
       console.error('Error in handleStake:', error)
