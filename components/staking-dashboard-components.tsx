@@ -1,5 +1,3 @@
-'use client';
-
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Button } from '@/components/ui/button'
@@ -14,23 +12,24 @@ import { StdFee } from '@cosmjs/amino'
 import Image from 'next/image'
 import { SwapWidget } from '@skip-go/widget'
 import { swapWidgetConfig } from './ui/SwapWidgetConfig'
-import { scaleLog } from 'd3-scale';
-import Head from 'next/head';
-import TintedImage from './process/TintedImage';
+import { scaleLog } from 'd3-scale'
+import Head from 'next/head'
+import TintedImage from './process/TintedImage'
 import { Dec } from '@keplr-wallet/unit'
-import axios from 'axios';
+import axios from 'axios'
 import { Header } from './cards/Header'
 import { Footer } from './cards/Footer'
+import { SigningStargateClient } from "@cosmjs/stargate";
 
-const REST_ENDPOINT = 'https://rest.cosmos.directory/cosmoshub';
-const VALIDATOR_ADDRESS = 'cosmosvaloper16s96n9k9zztdgjy8q4qcxp4hn7ww98qkrka4zk';
+const REST_ENDPOINT = 'https://rest.cosmos.directory/cosmoshub'
+const VALIDATOR_ADDRESS = 'cosmosvaloper16s96n9k9zztdgjy8q4qcxp4hn7ww98qkrka4zk'
 
 export default function StakingDashboard() {
   const [stakeAmount, setStakeAmount] = useState(100)
-  const [amountToStake, setAmountToStake] = useState(250) // Default to 250 ATOM
+  const [amountToStake, setAmountToStake] = useState(250)
   const [apr] = useState(15.12)
   const chainName: ChainName = 'cosmoshub'
-  const { connect, disconnect, openView, status, address, getSigningStargateClient } = useChain(chainName)
+  const { connect, disconnect, status, address, getOfflineSigner } = useChain(chainName)
 
   const [delegatedAtoms, setDelegatedAtoms] = useState<string>('0')
   const [blockHeight, setBlockHeight] = useState<number | null>(null)
@@ -174,29 +173,37 @@ export default function StakingDashboard() {
       console.error('Address is undefined');
       return;
     }
-
+  
     try {
-      const client = await getSigningStargateClient()
-      if (!client) throw new Error('No signing client')
-
+      const offlineSigner = await getOfflineSigner(chainName);
+      const client = await SigningStargateClient.connectWithSigner(
+        'https://rpc.cosmos.directory/cosmoshub', // You might want to use a variable for this URL
+        offlineSigner
+      );
+  
       const fee: StdFee = {
         amount: [{ denom: 'uatom', amount: '5000' }],
         gas: '200000',
-      }
-
+      };
+  
+      const amount = {
+        denom: 'uatom',
+        amount: (amountToStake * 1000000).toString(),
+      };
+  
       const result = await client.delegateTokens(
         address,
         VALIDATOR_ADDRESS,
-        { denom: 'uatom', amount: (amountToStake * 1000000).toString() },
+        amount,
         fee,
         'Staking via ONI'
-      )
-
-      console.log('Transaction hash:', result.transactionHash)
+      );
+  
+      console.log('Transaction hash:', result.transactionHash);
     } catch (error) {
-      console.error('Error staking tokens:', error)
+      console.error('Error staking tokens:', error);
     }
-  }
+  };
 
   const handleAmountToStakeChange = (value: string) => {
     const numValue = value === '' ? 0 : parseInt(value, 10);
@@ -243,27 +250,27 @@ export default function StakingDashboard() {
     setAmountToStake(Math.max(0, newAmount))
   }
 
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 text-white">
-        <Head>
-          <title>Oni Staking Dashboard</title>
-          <style jsx global>{`
-            @font-face {
-              font-family: 'Tokio Noir';
-              src: url('/fonts/TokioNoir.otf') format('opentype');
-              font-weight: normal;
-              font-style: normal;
-            }
-          `}</style>
-        </Head>
-        
-        <Header 
-          status={status} 
-          handleWalletConnection={handleWalletConnection} 
-          handleStake={handleStake} 
-        />
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 text-white">
+      <Head>
+        <title>Oni Staking Dashboard</title>
+        <style jsx global>{`
+          @font-face {
+            font-family: 'Tokio Noir';
+            src: url('/fonts/TokioNoir.otf') format('opentype');
+            font-weight: normal;
+            font-style: normal;
+          }
+        `}</style>
+      </Head>
+      
+      <Header 
+  status={status} 
+  handleWalletConnection={handleWalletConnection} 
+  handleStake={handleStake} 
+/>
 
-<main className="container mx-auto mt-8 px-4 pb-16">
+      <main className="container mx-auto mt-8 px-4 pb-16">
         <h1 className="text-4xl font-bold mb-8">EARN ATOM REWARDS</h1>
         <div className="grid md:grid-cols-3 gap-8">
           {/* Card 1 */}
@@ -281,170 +288,182 @@ export default function StakingDashboard() {
     height: '100%',
     borderRadius: '0',
   }}
+  connectedWallet={{
+    cosmos: {
+      getAddress: async (chainID) => {
+        if (!address) throw new Error('No account connected');
+        return address;
+      },
+      getSigner: async (chainID) => {
+        if (!address) throw new Error('No account connected');
+        return getOfflineSigner(chainID);
+      },
+    },
+  }}
 />
               </div>
             </CardContent>
           </Card>
 
-            {/* Card 2 */}
-            <Card className="bg-gray-800 bg-opacity-50 backdrop-blur-lg border-red-600 relative overflow-hidden flex flex-col min-h-[600px]">
-              <Image 
-                src="/images/chains/cosmoshub-4.jpg" 
-                alt="Cosmos Stake" 
-                fill
-                className="object-cover opacity-50"
-              />
-              <CardHeader className="text-center border-b border-gray-700 pb-4 relative z-10">
-                <CardTitle className="text-white">STAKE YOUR ATOM TO EARN REWARDS</CardTitle>
-              </CardHeader>
-              <CardContent className="relative z-10 flex flex-col flex-grow pt-6">
-                <div className="mb-auto">
-                  <p className="mb-4 text-white">You can safely stake your ATOM by following these steps:</p>
-                  <ol className="list-decimal list-inside mb-4 text-white">
-                    <li>Connect your wallet</li>
-                    <li>Enter the amount you want to stake</li>
-                    <li>Confirm the transaction in your wallet</li>
-                  </ol>
-                </div>
-                <div className="mt-auto">
-                  <div className="mb-4">
-                    <Label htmlFor="amountToStake" className="text-lg font-semibold mb-2 block text-white">Amount to stake</Label>
-                    <div className="relative w-full">
-                      <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
-                        <Atom className="h-6 w-6 text-white" />
-                      </div>
-                      <Input
-                        id="amountToStake"
-                        type="text"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        value={`${amountToStake} ATOM`}
-                        onChange={(e) => {
-                          const value = e.target.value.replace(/[^0-9]/g, '');
-                          handleAmountToStakeChange(value);
-                        }}
-                        className="bg-gray-700 text-white pl-12 pr-16 text-2xl h-14 w-full"
-                      />
-                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex flex-col">
-                        <button
-                          onClick={() => handleIncrementDecrementStake(true)}
-                          className="text-gray-400 hover:text-white"
-                        >
-                          <ChevronUp className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleIncrementDecrementStake(false)}
-                          className="text-gray-400 hover:text-white"
-                        >
-                          <ChevronDown className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                  <motion.div
-                    whileHover={{ scale: 1.00, rotate: 0.7 }}
-                    whileTap={{ scale: 0.98 }}
-                    transition={{ type: "spring", stiffness: 400, damping: 17 }}
-                    className="w-full"
-                  >
-                    <Button 
-                      onClick={handleStake} 
-                      className="w-full bg-[#FF4B4B] hover:bg-[#FF3B3B] transition-colors text-white font-semibold text-base py-4 px-4 rounded-lg shadow-md h-14"
-                    >
-                      Stake Now
-                    </Button>
-                  </motion.div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Card 3 */}
-            <Card className="bg-gray-800 bg-opacity-50 backdrop-blur-lg border-red-600 flex flex-col min-h-[600px]">
-              <CardHeader className="text-center border-b border-gray-700 pb-4">
-                <CardTitle className="text-white">CALCULATE YOUR PROFIT</CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-col flex-grow pt-6">
-              <div className="w-40 h-40 mx-auto mb-12">
-                  <motion.div
-                 whileHover={{ rotate: [0, 5, -5, 5, 0], x: [0, 5, -5, 5, 0] }}
-                 transition={{ duration: .75 }}
-                  >
-                    <Image
-                      src="/images/oni-chan-6.png"
-                      alt="Oni-chan caclulating on an abacus"
-                      width={160}
-                      height={160}
-                      layout="responsive"
-                    />
-                  </motion.div>
-      </div>
-                <div className="text-center">
-                  <Label htmlFor="stakeAmount" className="text-lg font-semibold mb-4 block text-white">ENTER YOUR AMOUNT</Label>
-                  <div className="relative max-w-xs mx-auto mb-4">
+          {/* Card 2 */}
+          <Card className="bg-gray-800 bg-opacity-50 backdrop-blur-lg border-red-600 relative overflow-hidden flex flex-col min-h-[600px]">
+            <Image 
+              src="/images/chains/cosmoshub-4.jpg" 
+              alt="Cosmos Stake" 
+              fill
+              className="object-cover opacity-50"
+            />
+            <CardHeader className="text-center border-b border-gray-700 pb-4 relative z-10">
+              <CardTitle className="text-white">STAKE YOUR ATOM TO EARN REWARDS</CardTitle>
+            </CardHeader>
+            <CardContent className="relative z-10 flex flex-col flex-grow pt-6">
+              <div className="mb-auto">
+                <p className="mb-4 text-white">You can safely stake your ATOM by following these steps:</p>
+                <ol className="list-decimal list-inside mb-4 text-white">
+                  <li>Connect your wallet</li>
+                  <li>Enter the amount you want to stake</li>
+                  <li>Confirm the transaction in your wallet</li>
+                </ol>
+              </div>
+              <div className="mt-auto">
+                <div className="mb-4">
+                  <Label htmlFor="amountToStake" className="text-lg font-semibold mb-2 block text-white">Amount to stake</Label>
+                  <div className="relative w-full">
                     <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
                       <Atom className="h-6 w-6 text-white" />
                     </div>
                     <Input
-                      id="stakeAmount"
+                      id="amountToStake"
                       type="text"
                       inputMode="numeric"
                       pattern="[0-9]*"
-                      value={`${stakeAmount} ATOM`}
+                      value={`${amountToStake} ATOM`}
                       onChange={(e) => {
                         const value = e.target.value.replace(/[^0-9]/g, '');
-                        handleStakeAmountChange(value);
+                        handleAmountToStakeChange(value);
                       }}
-                      className="bg-gray-700 text-white pl-12 pr-16 text-2xl h-14 text-center"
+                      className="bg-gray-700 text-white pl-12 pr-16 text-2xl h-14 w-full"
                     />
                     <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex flex-col">
                       <button
-                        onClick={() => handleIncrementDecrement(true)}
+                        onClick={() => handleIncrementDecrementStake(true)}
                         className="text-gray-400 hover:text-white"
                       >
                         <ChevronUp className="h-4 w-4" />
                       </button>
                       <button
-                        onClick={() => handleIncrementDecrement(false)}
+                        onClick={() => handleIncrementDecrementStake(false)}
                         className="text-gray-400 hover:text-white"
                       >
                         <ChevronDown className="h-4 w-4" />
                       </button>
                     </div>
                   </div>
-                  <Slider
-                    value={[getSliderValue(stakeAmount)]}
-                    min={0}
-                    max={100}
-                    step={0.1}
-                    className="max-w-xs mx-auto"
-                    onValueChange={handleSliderChange}
-                  />
                 </div>
-                <div className="text-sm text-gray-400 mt-2 text-center">ONI FEE: 5%</div>
-                <div className="mt-auto space-y-2">
-                  {['daily', 'monthly', 'yearly'].map((period, index) => (
-                    <div key={period}>
-                      <div className="flex justify-between items-center py-2">
-                        <span className="text-gray-400 capitalize">{period}</span>
-                        <span className="text-xl font-bold">
-                          <span className="text-red-600">{calculateProfit(stakeAmount, period as 'daily' | 'monthly' | 'yearly')}</span>
-                          <span className="text-sm font-normal ml-1 text-white">ATOM</span>
-                        </span>
-                      </div>
-                      {index < 2 && <div className="border-b border-gray-700"></div>}
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </main>
+                <motion.div
+                  whileHover={{ scale: 1.00, rotate: 0.7 }}
+                  whileTap={{ scale: 0.98 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                  className="w-full"
+                >
+                  <Button 
+                    onClick={handleStake} 
+                    className="w-full bg-[#FF4B4B] hover:bg-[#FF3B3B] transition-colors text-white font-semibold text-base py-4 px-4 rounded-lg shadow-md h-14"
+                  >
+                    Stake Now
+                  </Button>
+                </motion.div>
+              </div>
+            </CardContent>
+          </Card>
 
-        <Footer 
-          delegatedAtoms={delegatedAtoms} 
-          address={address} 
-          atomPrice={atomPrice} 
-        />
-      </div>
-    )
+          {/* Card 3 */}
+          <Card className="bg-gray-800 bg-opacity-50 backdrop-blur-lg border-red-600 flex flex-col min-h-[600px]">
+            <CardHeader className="text-center border-b border-gray-700 pb-4">
+              <CardTitle className="text-white">CALCULATE YOUR PROFIT</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col flex-grow pt-6">
+            <div className="w-40 h-40 mx-auto mb-12">
+                <motion.div
+               whileHover={{ rotate: [0, 5, -5, 5, 0], x: [0, 5, -5, 5, 0] }}
+               transition={{ duration: .75 }}
+                >
+                  <Image
+                    src="/images/oni-chan-6.png"
+                    alt="Oni-chan caclulating on an abacus"
+                    width={160}
+                    height={160}
+                    style={{ width: '100%', height: 'auto' }}
+                  />
+                </motion.div>
+    </div>
+              <div className="text-center">
+                <Label htmlFor="stakeAmount" className="text-lg font-semibold mb-4 block text-white">ENTER YOUR AMOUNT</Label>
+                <div className="relative max-w-xs mx-auto mb-4">
+                  <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
+                    <Atom className="h-6 w-6 text-white" />
+                  </div>
+                  <Input
+                    id="stakeAmount"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={`${stakeAmount} ATOM`}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/[^0-9]/g, '');
+                      handleStakeAmountChange(value);
+                    }}
+                    className="bg-gray-700 text-white pl-12 pr-16 text-2xl h-14 text-center"
+                  />
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex flex-col">
+                    <button
+                      onClick={() => handleIncrementDecrement(true)}
+                      className="text-gray-400 hover:text-white"
+                    >
+                      <ChevronUp className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => handleIncrementDecrement(false)}
+                      className="text-gray-400 hover:text-white"
+                    >
+                      <ChevronDown className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+                <Slider
+                  value={[getSliderValue(stakeAmount)]}
+                  min={0}
+                  max={100}
+                  step={0.1}
+                  className="max-w-xs mx-auto"
+                  onValueChange={handleSliderChange}
+                />
+              </div>
+              <div className="text-sm text-gray-400 mt-2 text-center">ONI FEE: 5%</div>
+              <div className="mt-auto space-y-2">
+                {['daily', 'monthly', 'yearly'].map((period, index) => (
+                  <div key={period}>
+                    <div className="flex justify-between items-center py-2">
+                      <span className="text-gray-400 capitalize">{period}</span>
+                      <span className="text-xl font-bold">
+                        <span className="text-red-600">{calculateProfit(stakeAmount, period as 'daily' | 'monthly' | 'yearly')}</span>
+                        <span className="text-sm font-normal ml-1 text-white">ATOM</span>
+                      </span>
+                    </div>
+                    {index < 2 && <div className="border-b border-gray-700"></div>}
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+
+      <Footer 
+        delegatedAtoms={delegatedAtoms} 
+        address={address} 
+        atomPrice={atomPrice} 
+      />
+    </div>
+  )
 }

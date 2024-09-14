@@ -5,8 +5,7 @@ import { ChainProvider } from '@cosmos-kit/react'
 import { chains, assets } from 'chain-registry'
 import { wallets } from "cosmos-kit";
 import "@interchain-ui/react/styles";
-import { ThemeProvider } from '@interchain-ui/react'; // Add this import
-
+import { ThemeProvider } from '@interchain-ui/react';
 import { Inter } from "next/font/google";
 import "./globals.css";
 
@@ -24,6 +23,8 @@ const walletConnectOptions = {
     }
   }
 }
+
+const cosmosChains = chains.filter((chain) => chain.chain_name === 'cosmoshub');
 
 export default function RootLayout({
   children,
