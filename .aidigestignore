@@ -1,0 +1,9 @@
+.next
+.env.local
+.eslintrc.json
+.gitignore
+yarn-error.log
+yarn.lock
+node_modules
+/docs
+/components/staking-dashboard.tsx
